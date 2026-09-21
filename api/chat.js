@@ -44,7 +44,7 @@ export default async function handler(request, response) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'anthropic/claude-sonnet-5',
+        model: 'anthropic/claude-sonnet-4.6',
         messages: [
           {
             role: 'system',
