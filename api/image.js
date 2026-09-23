@@ -36,7 +36,7 @@ export default async function handler(request, response) {
 
   try {
     const imageResponse = await fetch(
-      "https://router.huggingface.co/hf-inference/models/black-forest-labs/FLUX.1-schnell",
+      "https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-3-medium-diffusers",
       {
         method: "POST",
         headers: {
@@ -51,11 +51,25 @@ export default async function handler(request, response) {
     if (!imageResponse.ok) {
       const detail = await imageResponse.text();
       console.error("Hugging Face image error", imageResponse.status, detail);
+
+      if (imageResponse.status === 401 || imageResponse.status === 403) {
+        return response.status(502).json({ error: "The Hugging Face token cannot access the image model." });
+      }
+      if (imageResponse.status === 402) {
+        return response.status(502).json({ error: "The Hugging Face image credits have been used." });
+      }
       return response.status(502).json({ error: "The image service is temporarily unavailable." });
     }
 
+    const contentType = imageResponse.headers.get("content-type") || "";
+    if (!contentType.startsWith("image/")) {
+      const detail = await imageResponse.text();
+      console.error("Unexpected Hugging Face response", contentType, detail);
+      return response.status(502).json({ error: "The image service returned an unexpected response." });
+    }
+
     const image = Buffer.from(await imageResponse.arrayBuffer());
-    response.setHeader("Content-Type", imageResponse.headers.get("content-type") || "image/jpeg");
+    response.setHeader("Content-Type", contentType);
     response.setHeader("Cache-Control", "no-store");
     return response.status(200).send(image);
   } catch (error) {
