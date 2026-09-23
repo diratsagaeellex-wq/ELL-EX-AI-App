@@ -1,3 +1,5 @@
+import { InferenceClient } from "@huggingface/inference";
+
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS = 4;
 const requests = new Map();
@@ -35,31 +37,19 @@ export default async function handler(request, response) {
   }
 
   try {
-    const imageResponse = await fetch(
-      "https://router.huggingface.co/fal-ai/models/black-forest-labs/FLUX.1-schnell",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-          Accept: "image/jpeg",
-        },
-        body: JSON.stringify({ inputs: prompt }),
-      }
-    );
+    const client = new InferenceClient(token);
+    const imageBlob = await client.textToImage({
+      model: "black-forest-labs/FLUX.1-schnell",
+      inputs: prompt,
+      provider: "auto",
+    });
 
-    if (!imageResponse.ok) {
-      const detail = await imageResponse.text();
-      console.error("Hugging Face image error", imageResponse.status, detail);
-      return response.status(502).json({ error: "The image service is temporarily unavailable." });
-    }
-
-    const image = Buffer.from(await imageResponse.arrayBuffer());
-    response.setHeader("Content-Type", imageResponse.headers.get("content-type") || "image/jpeg");
+    const image = Buffer.from(await imageBlob.arrayBuffer());
+    response.setHeader("Content-Type", imageBlob.type || "image/jpeg");
     response.setHeader("Cache-Control", "no-store");
     return response.status(200).send(image);
   } catch (error) {
-    console.error("ELL-EX image error", error);
-    return response.status(500).json({ error: "ELL-EX could not create that image." });
+    console.error("Hugging Face image error", error);
+    return response.status(502).json({ error: "The image service is temporarily unavailable." });
   }
 }
