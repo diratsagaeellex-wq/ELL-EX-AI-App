@@ -23,7 +23,7 @@ export default async function handler(request, response) {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'Qwen/Qwen2.5-VL-3B-Instruct',
+        model: 'Qwen/Qwen2.5-VL-3B-Instruct:featherless-ai',
         messages: [{
           role: 'user',
           content: [
