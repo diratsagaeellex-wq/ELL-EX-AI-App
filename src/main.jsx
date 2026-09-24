@@ -1,4 +1,4 @@
-import React,{useState} from 'react';
+import React,{useEffect,useRef,useState} from 'react';
 import{createRoot}from'react-dom/client';
 import{Home,Sparkles,GraduationCap,Users,Orbit,ShieldCheck,Settings,HelpCircle,Mic,Camera,Paperclip,MonitorUp,ArrowUp,MessageCircle,Code2,BookOpen,CalendarDays,Bell,BrainCircuit,Globe2,Palette,LockKeyhole,History,ChevronRight,Menu,X,Volume2,Plus,ScanLine,Copy,ThumbsUp,RotateCcw}from'lucide-react';
 import'./styles.css';
@@ -20,6 +20,51 @@ function Composer({mode,setMode}){
   const[text,setText]=useState('');
   const[loading,setLoading]=useState(false);
   const[messages,setMessages]=useState([]);
+  const[listening,setListening]=useState(false);
+  const[voiceError,setVoiceError]=useState('');
+  const recognitionRef=useRef(null);
+
+  useEffect(()=>()=>recognitionRef.current?.abort(),[]);
+
+  const toggleVoice=()=>{
+    setVoiceError('');
+    if(listening){
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    const SpeechRecognition=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!SpeechRecognition){
+      setVoiceError('Voice input is not supported in this browser. Please open ELL-EX in Chrome.');
+      return;
+    }
+
+    const recognition=new SpeechRecognition();
+    recognition.lang='en-ZA';
+    recognition.interimResults=true;
+    recognition.continuous=false;
+    recognition.maxAlternatives=1;
+    recognitionRef.current=recognition;
+
+    recognition.onstart=()=>setListening(true);
+    recognition.onresult=event=>{
+      let transcript='';
+      for(let i=event.resultIndex;i<event.results.length;i++)transcript+=event.results[i][0].transcript;
+      setText(transcript.trim());
+    };
+    recognition.onerror=event=>{
+      const message=event.error==='not-allowed'||event.error==='service-not-allowed'
+        ?'Microphone permission was blocked. Allow microphone access for this site and try again.'
+        :event.error==='no-speech'
+          ?'I did not hear anything. Tap the microphone and speak again.'
+          :'Voice input could not start. Please try again.';
+      setVoiceError(message);
+      setListening(false);
+    };
+    recognition.onend=()=>setListening(false);
+
+    try{recognition.start()}catch{setListening(false)}
+  };
 
   const run=async(rawQuestion,retryId=null)=>{
     const clean=rawQuestion.trim();
@@ -78,11 +123,12 @@ function Composer({mode,setMode}){
 
   const send=()=>run(text);
   const removeMessage=id=>setMessages(current=>current.filter(message=>message.id!==id));
-  const newChat=()=>{setMessages([]);setText('')};
+  const newChat=()=>{recognitionRef.current?.abort();setListening(false);setVoiceError('');setMessages([]);setText('')};
 
   return <>
     <section className="hero"><p>Good day, Creator</p><h1>What will we <em>create</em> today?</h1><span>One intelligence. Every possibility.</span></section>
-    <section className="composer"><textarea value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}} placeholder="Type, speak, show, or drop anything…"/><div className="tools"><button title="Add"><Plus/></button><button><Mic/>Voice</button><button><Camera/>Camera</button><button><Paperclip/>Files</button><button className="desktop"><MonitorUp/>Live screen</button><div className="spacer"/><ScanLine className="pulse"/><button className="send" onClick={send} aria-label="Send" disabled={loading||!text.trim()}><ArrowUp/></button></div></section>
+    <section className="composer"><textarea value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}} placeholder={listening?'Listening… speak now':'Type, speak, show, or drop anything…'}/><div className="tools"><button title="Add"><Plus/></button><button className={listening?'voice listening':'voice'} onClick={toggleVoice} aria-label={listening?'Stop listening':'Start voice input'} aria-pressed={listening}><Mic/>{listening?'Listening':'Voice'}</button><button><Camera/>Camera</button><button><Paperclip/>Files</button><button className="desktop"><MonitorUp/>Live screen</button><div className="spacer"/><ScanLine className="pulse"/><button className="send" onClick={send} aria-label="Send" disabled={loading||!text.trim()}><ArrowUp/></button></div></section>
+    {voiceError&&<div className="voice-error" role="alert">{voiceError}</div>}
     {messages.length>0&&<div className="answer-actions"><button onClick={newChat}><Plus/>New chat</button></div>}
     {messages.map(message=><React.Fragment key={message.id}>
       <section className="answer"><div className="answer-top"><div className="answer-mark"><MessageCircle/></div><div><span className="demo-label">YOU · {message.mode.toUpperCase()}</span><h2>{message.question}</h2></div></div></section>
