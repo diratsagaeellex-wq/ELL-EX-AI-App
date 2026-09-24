@@ -70,7 +70,7 @@ function Composer({mode,setMode}){
     try{recognition.start()}catch{setListening(false)}
   };
 
-  const selectPhoto=file=>{
+  const selectPhotoOld=file=>{
     setPhotoError('');
     if(!file)return;
     if(!file.type.startsWith('image/')){setPhotoError('Please choose an image file.');return}
@@ -97,6 +97,52 @@ function Composer({mode,setMode}){
     reader.onerror=()=>setPhotoError('ELL-EX could not read that photo. Please try another one.');
     reader.readAsDataURL(file);
   };
+
+const selectPhoto=file=>{
+  setPhotoError('');
+  if(!file)return;
+
+  if(!file.type.startsWith('image/')){
+    setPhotoError('Please choose an image file.');
+    return;
+  }
+
+  if(file.size>8*1024*1024){
+    setPhotoError('That image is too large. Please choose one under 8 MB.');
+    return;
+  }
+
+  const objectUrl=URL.createObjectURL(file);
+  const img=new Image();
+
+  img.onload=()=>{
+    try{
+      const max=1280;
+      const scale=Math.min(1,max/Math.max(img.width,img.height));
+      const canvas=document.createElement('canvas');
+      canvas.width=Math.round(img.width*scale);
+      canvas.height=Math.round(img.height*scale);
+      const ctx=canvas.getContext('2d');
+      ctx.drawImage(img,0,0,canvas.width,canvas.height);
+
+      setPhoto({
+        name:file.name||'Camera photo',
+        dataUrl:canvas.toDataURL('image/jpeg',0.7)
+      });
+    }catch(error){
+      setPhotoError('ELL-EX could not process that photo.');
+    }finally{
+      URL.revokeObjectURL(objectUrl);
+    }
+  };
+
+  img.onerror=()=>{
+    URL.revokeObjectURL(objectUrl);
+    setPhotoError('ELL-EX could not process that photo.');
+  };
+
+  img.src=objectUrl;
+};
 
   const run=async(rawQuestion,retryId=null)=>{
     const clean=rawQuestion.trim();
