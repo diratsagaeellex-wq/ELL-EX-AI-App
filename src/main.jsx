@@ -76,7 +76,24 @@ function Composer({mode,setMode}){
     if(!file.type.startsWith('image/')){setPhotoError('Please choose an image file.');return}
     if(file.size>8*1024*1024){setPhotoError('That image is too large. Please choose one under 8 MB.');return}
     const reader=new FileReader();
-    reader.onload=()=>setPhoto({name:file.name||'Camera photo',dataUrl:reader.result});
+    reader.onload=()=>{
+  const img=new Image();
+  img.onload=()=>{
+    const max=1280;
+    const scale=Math.min(1,max/Math.max(img.width,img.height));
+    const canvas=document.createElement('canvas');
+    canvas.width=Math.round(img.width*scale);
+    canvas.height=Math.round(img.height*scale);
+    const ctx=canvas.getContext('2d');
+    ctx.drawImage(img,0,0,canvas.width,canvas.height);
+    setPhoto({
+      name:file.name||'Camera photo',
+      dataUrl:canvas.toDataURL('image/jpeg',0.7)
+    });
+  };
+  img.onerror=()=>setPhotoError('ELL-EX could not process that photo.');
+  img.src=reader.result;
+};
     reader.onerror=()=>setPhotoError('ELL-EX could not read that photo. Please try another one.');
     reader.readAsDataURL(file);
   };
