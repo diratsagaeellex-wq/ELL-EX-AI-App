@@ -23,7 +23,7 @@ export default async function handler(request, response) {
       method: 'POST',
       headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        model: 'Qwen/Qwen2.5-VL-7B-Instruct:cheapest',
+        model: 'Qwen/Qwen2.5-VL-3B-Instruct:featherless-ai',
         messages: [{
           role: 'user',
           content: [
@@ -38,7 +38,12 @@ export default async function handler(request, response) {
     const data = await aiResponse.json();
     if (!aiResponse.ok) {
       console.error('Hugging Face vision error', aiResponse.status, data?.error?.message || data?.error || data);
-      return response.status(502).json({ error: 'The vision service is temporarily unavailable.' });
+      const providerMessage = data?.error?.message || data?.error;
+      return response.status(502).json({
+        error: typeof providerMessage === 'string'
+          ? `Vision provider error: ${providerMessage.slice(0, 180)}`
+          : 'The vision service is temporarily unavailable.'
+      });
     }
     const text = data?.choices?.[0]?.message?.content?.trim();
     if (!text) return response.status(502).json({ error: 'ELL-EX Vision returned an empty response.' });
