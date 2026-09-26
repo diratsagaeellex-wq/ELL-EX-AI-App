@@ -2,6 +2,28 @@ import React, { useState } from 'react';
 
 export default function NovaChat() {
   const [message, setMessage] = useState('');
+async function sendMessage() {
+  const question = message.trim();
+  if (!question) return;
+
+  try {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        question,
+        mode: 'Ask',
+      }),
+    });
+
+    const data = await response.json();
+    alert(data.text || data.error || 'No response received.');
+  } catch (error) {
+    alert('Nova could not connect to the AI.');
+  }
+}
 
   return (
     <section className="nova-chat">
@@ -27,6 +49,7 @@ export default function NovaChat() {
 
       <button
         type="button"
+onClick={() => sendMessage()}
         disabled={!message.trim()}
       >
         Ask Nova
