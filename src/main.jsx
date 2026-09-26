@@ -2,7 +2,7 @@ import React,{useEffect,useRef,useState} from 'react';
 import{createRoot}from'react-dom/client';
 import{Home,Sparkles,GraduationCap,Users,Orbit,ShieldCheck,Settings,HelpCircle,Mic,Camera,Paperclip,MonitorUp,ArrowUp,MessageCircle,Code2,BookOpen,CalendarDays,Bell,BrainCircuit,Globe2,Palette,LockKeyhole,History,ChevronRight,Menu,X,Volume2,Plus,ScanLine,Copy,ThumbsUp,RotateCcw,ImageIcon}from'lucide-react';
 import'./styles.css';
-import NovaChat from './NovaChat.jsx';
+
 
 const nav=[['Home',Home],['Create',Sparkles],['Learn',GraduationCap],['Agents',Users],['Worlds',Orbit],['Vault',ShieldCheck]];
 const modes=[['Ask','Get clear answers',MessageCircle],['Create','Make images & media',Palette],['Build','Turn ideas into apps',Code2],['Learn','Your adaptive tutor',BookOpen],['Plan','Goals into action',CalendarDays]];
