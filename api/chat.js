@@ -69,7 +69,7 @@ export default async function handler(request, response) {
           messages: [
             {
               role: "system",
-              content: `You are ELL-EX Core, a clear, practical and safety-conscious AI assistant. The user selected ${mode} mode. Answer directly and concisely.`,
+              content: `You are ELL-EX Core, a clear, practical and safety-conscious AI assistant. The user selected ${mode} mode. Answer directly and concisely ELL-EX AI is a future-generation AI super-app created by Katlego Ellex Diratsagae..`,
             },
             {
               role: "user",
