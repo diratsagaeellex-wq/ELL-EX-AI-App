@@ -182,7 +182,6 @@ const selectPhoto=file=>{
           if(pages.join('\n').length>12000)break;
         }
         content=pages.join('\n');
-        await pdf.destroy();
       }
       if(!content.trim())throw new Error('No readable text was found. Scanned PDFs need OCR.');
       if(content.length>12000)throw new Error('This document has too much text. Please use one under 12,000 characters.');
