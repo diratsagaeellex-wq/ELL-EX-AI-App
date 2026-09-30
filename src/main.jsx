@@ -25,8 +25,12 @@ function Composer({mode,setMode}){
   const[voiceError,setVoiceError]=useState('');
   const[photo,setPhoto]=useState(null);
   const[photoError,setPhotoError]=useState('');
+  const[document,setDocument]=useState(null);
+  const[documentLoading,setDocumentLoading]=useState(false);
+  const[documentError,setDocumentError]=useState('');
   const recognitionRef=useRef(null);
   const cameraRef=useRef(null);
+  const photoRef=useRef(null);
   const fileRef=useRef(null);
 
   useEffect(()=>()=>recognitionRef.current?.abort(),[]);
@@ -102,6 +106,7 @@ function Composer({mode,setMode}){
 const selectPhoto=file=>{
   setPhotoError('');
   if(!file)return;
+  setDocument(null);
 
   if(!file.type.startsWith('image/')){
     setPhotoError('Please choose an image file.');
@@ -145,9 +150,51 @@ const selectPhoto=file=>{
   img.src=objectUrl;
 };
 
-  const run=async(rawQuestion,retryId=null)=>{
+  const selectDocument=async file=>{
+    setDocumentError('');
+    if(!file)return;
+    const extension=file.name.toLowerCase().split('.').pop();
+    if(!['pdf','docx','txt','md'].includes(extension)){
+      setDocumentError('Choose a PDF, DOCX, TXT, or MD document.');return;
+    }
+    if(file.size>3*1024*1024){
+      setDocumentError('Choose a document under 3 MB.');return;
+    }
+    setPhoto(null);
+    setDocumentLoading(true);
+    try{
+      let content='';
+      if(extension==='txt'||extension==='md')content=await file.text();
+      else if(extension==='docx'){
+        const mammoth=await import('mammoth/mammoth.browser');
+        const result=await mammoth.extractRawText({arrayBuffer:await file.arrayBuffer()});
+        content=result.value;
+      }else{
+        const pdfjs=await import('pdfjs-dist');
+        const worker=await import('pdfjs-dist/build/pdf.worker.min.mjs?url');
+        pdfjs.GlobalWorkerOptions.workerSrc=worker.default;
+        const pdf=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise;
+        const pages=[];
+        for(let pageNumber=1;pageNumber<=pdf.numPages;pageNumber++){
+          const page=await pdf.getPage(pageNumber);
+          const textContent=await page.getTextContent();
+          pages.push(textContent.items.map(item=>item.str||'').join(' '));
+          if(pages.join('\n').length>12000)break;
+        }
+        content=pages.join('\n');
+        await pdf.destroy();
+      }
+      if(!content.trim())throw new Error('No readable text was found. Scanned PDFs need OCR.');
+      if(content.length>12000)throw new Error('This document has too much text. Please use one under 12,000 characters.');
+      setDocument({name:file.name,text:content.trim()});
+    }catch(error){setDocumentError(error.message||'Could not read this document.');}
+    finally{setDocumentLoading(false)}
+  };
+
+  const run=async(rawQuestion,retryId=null,retryDocument=null)=>{
     const clean=rawQuestion.trim();
-    if((!clean&&!photo)||loading)return;
+    const attachedDocument=retryDocument||document;
+    if((!clean&&!photo&&!attachedDocument)||loading||documentLoading)return;
 
     const history=messages
       .filter(message=>message.id!==retryId&&message.answer?.live)
@@ -162,12 +209,12 @@ const selectPhoto=file=>{
     if(retryId)setMessages(current=>current.filter(message=>message.id!==retryId));
 
     try{
-      const isImage=mode==='Create'&&!photo;
+      const isImage=mode==='Create'&&!photo&&!attachedDocument;
       const isVision=Boolean(photo);
       const response=await fetch(isVision?'/api/vision':isImage?'/api/image':'/api/chat',{
         method:'POST',
         headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(isVision?{question:clean||'Describe this image clearly and identify any useful details.',image:photo.dataUrl}:isImage?{prompt:clean}:{question:contextualQuestion,mode})
+        body:JSON.stringify(isVision?{question:clean||'Describe this image clearly and identify any useful details.',image:photo.dataUrl}:isImage?{prompt:clean}:{question:contextualQuestion||'Summarize this document.',mode,document:attachedDocument?.text,documentName:attachedDocument?.name})
       });
       if(isImage&&response.ok){
         const imageUrl=URL.createObjectURL(await response.blob());
@@ -185,15 +232,18 @@ const selectPhoto=file=>{
       }
       setMessages(current=>[...current,{
         id,
-        question:clean||(isVision?'Analyse this image':''),
+        question:clean||(isVision?'Analyse this image':'Summarize this document'),
+        document:attachedDocument,
         mode,
         answer:{title:isVision?'ELL-EX Vision response':'ELL-EX Intelligence response',body:cleanText(data.text),points:[],suggestions:[],live:true,label:isVision?'VISION AI':'LIVE AI'}
       }]);
       if(isVision)setPhoto(null);
+      if(attachedDocument)setDocument(null);
     }catch(error){
       setMessages(current=>[...current,{
         id,
-        question:clean,
+        question:clean||'Summarize this document',
+        document:attachedDocument,
         mode,
         answer:{title:'ELL-EX could not complete that request',body:error.message||'Please try again.',points:[],suggestions:[],live:false,label:'CONNECTION ERROR'}
       }]);
@@ -204,16 +254,16 @@ const selectPhoto=file=>{
 
   const send=()=>run(text);
   const removeMessage=id=>setMessages(current=>current.filter(message=>message.id!==id));
-  const newChat=()=>{recognitionRef.current?.abort();setListening(false);setVoiceError('');setPhotoError('');setPhoto(null);setMessages([]);setText('')};
+  const newChat=()=>{recognitionRef.current?.abort();setListening(false);setVoiceError('');setPhotoError('');setDocumentError('');setDocument(null);setPhoto(null);setMessages([]);setText('')};
 
   return <>
     <section className="hero"><p>Good day, Creator</p><h1>What will we <em>create</em> today?</h1><span>One intelligence. Every possibility.</span></section>
-    <section className="composer">{photo&&<div className="photo-preview"><img src={photo.dataUrl} alt="Selected for ELL-EX Vision"/><div><ImageIcon/><span>{photo.name}</span></div><button onClick={()=>setPhoto(null)} aria-label="Remove selected image"><X/></button></div>}<textarea value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}} placeholder={photo?'Ask ELL-EX about this image…':listening?'Listening… speak now':'Ask Nova anything — type, speak, show, or drop it here…'}/><input ref={cameraRef} className="file-input" type="file" accept="image/*" capture="environment" onChange={e=>{selectPhoto(e.target.files?.[0]);e.target.value=''}}/><input ref={fileRef} className="file-input" type="file" accept="image/*" onChange={e=>{selectPhoto(e.target.files?.[0]);e.target.value=''}}/><div className="tools"><button title="Add" onClick={()=>fileRef.current?.click()}><Plus/></button><button className={listening?'voice listening':'voice'} onClick={toggleVoice} aria-label={listening?'Stop listening':'Start voice input'} aria-pressed={listening}><Mic/>{listening?'Listening':'Voice'}</button><button className={photo?'camera active':'camera'} onClick={()=>cameraRef.current?.click()}><Camera/>Camera</button><button onClick={()=>fileRef.current?.click()}><Paperclip/>Photos</button><button className="desktop"><MonitorUp/>Live screen</button><div className="spacer"/><ScanLine className="pulse"/><button className="send" onClick={send} aria-label="Send" disabled={loading||(!text.trim()&&!photo)}><ArrowUp/></button></div></section>
-    {(voiceError||photoError)&&<div className="voice-error" role="alert">{voiceError||photoError}</div>}
+    <section className="composer">{photo&&<div className="photo-preview"><img src={photo.dataUrl} alt="Selected for ELL-EX Vision"/><div><ImageIcon/><span>{photo.name}</span></div><button onClick={()=>setPhoto(null)} aria-label="Remove selected image"><X/></button></div>}{document&&<div className="document-preview"><span>📄 {document.name}</span><button onClick={()=>setDocument(null)} aria-label="Remove selected document"><X/></button></div>}<textarea value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();send()}}} placeholder={photo?'Ask ELL-EX about this image…':listening?'Listening… speak now':'Ask Nova anything — type, speak, show, or drop it here…'}/><input ref={cameraRef} className="file-input" type="file" accept="image/*" capture="environment" onChange={e=>{selectPhoto(e.target.files?.[0]);e.target.value=''}}/><input ref={photoRef} className="file-input" type="file" accept="image/*" onChange={e=>{selectPhoto(e.target.files?.[0]);e.target.value=''}}/><input ref={fileRef} className="file-input" type="file" accept=".pdf,.docx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown" onChange={e=>{selectDocument(e.target.files?.[0]);e.target.value=''}}/><div className="tools"><button title="Add" onClick={()=>photoRef.current?.click()}><Plus/></button><button className={listening?'voice listening':'voice'} onClick={toggleVoice} aria-label={listening?'Stop listening':'Start voice input'} aria-pressed={listening}><Mic/>{listening?'Listening':'Voice'}</button><button className={photo?'camera active':'camera'} onClick={()=>cameraRef.current?.click()}><Camera/>Camera</button><button onClick={()=>fileRef.current?.click()}><Paperclip/>Files</button><button className="desktop"><MonitorUp/>Live screen</button><div className="spacer"/><ScanLine className="pulse"/><button className="send" onClick={send} aria-label="Send" disabled={loading||documentLoading||(!text.trim()&&!photo&&!document)}><ArrowUp/></button></div></section>
+    {(voiceError||photoError||documentError)&&<div className="voice-error" role="alert">{voiceError||photoError||documentError}</div>}
     {messages.length>0&&<div className="answer-actions"><button onClick={newChat}><Plus/>New chat</button></div>}
     {messages.map(message=><React.Fragment key={message.id}>
       <section className="answer"><div className="answer-top"><div className="answer-mark"><MessageCircle/></div><div><span className="demo-label">YOU · {message.mode.toUpperCase()}</span><h2>{message.question}</h2></div></div></section>
-      <AnswerPanel answer={message.answer} onClose={()=>removeMessage(message.id)} onRetry={()=>run(message.question,message.id)} onFollowUp={run}/>
+      <AnswerPanel answer={message.answer} onClose={()=>removeMessage(message.id)} onRetry={()=>run(message.question,message.id,message.document)} onFollowUp={run}/>
     </React.Fragment>)}
     {loading&&<div className="thinking"><BrainCircuit/><div><b>{mode==='Create'?'ELL-EX is creating your image':'Intelligence Core is thinking'}</b><span>{mode==='Create'?'This can take a little longer…':'Using this conversation to prepare the next response…'}</span></div><i/><i/><i/></div>}
     <div className="modes">{modes.map(([n,d,I])=><button key={n} className={mode===n?'selected':''} onClick={()=>setMode(n)}><I/><span><b>{n}</b><small>{d}</small></span></button>)}</div>

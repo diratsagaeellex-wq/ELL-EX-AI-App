@@ -40,6 +40,19 @@ export default async function handler(request, response) {
       ? request.body.mode.trim()
       : "Ask";
 
+  const document =
+    typeof request.body?.document === "string"
+      ? request.body.document.trim()
+      : "";
+  const documentName =
+    typeof request.body?.documentName === "string"
+      ? request.body.documentName.slice(0, 120)
+      : "document";
+
+  if (document.length > 12000) {
+    return response.status(400).json({ error: "Document text exceeds 12,000 characters." });
+  }
+
   if (!question || question.length > 3000) {
     return response
       .status(400)
@@ -73,7 +86,9 @@ export default async function handler(request, response) {
             },
             {
               role: "user",
-              content: question,
+              content: document
+                ? `${question}\n\nAttached document (${documentName}):\n${document}`
+                : question,
             },
           ],
           max_tokens: 350,

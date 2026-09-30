@@ -16,3 +16,5 @@
 .photo-preview span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .photo-preview>button{margin-left:auto;background:transparent;border:0;color:#a9bfd2;padding:6px}
 .tools .camera.active{color:#fff;border-color:#4ab6ff;box-shadow:0 0 0 2px rgba(74,182,255,.22)}
+.document-preview{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0;padding:10px 12px;border:1px solid #587398;border-radius:12px;color:#dce9ff;overflow-wrap:anywhere}
+.document-preview button{display:flex;align-items:center;justify-content:center;border:0;background:transparent;color:inherit;cursor:pointer}
