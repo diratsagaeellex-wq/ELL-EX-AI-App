@@ -28,9 +28,9 @@ async function sendMessage() {
   return (
     <section className="nova-chat">
       <div className="nova-chat-header">
-        <div className="nova-avatar">N</div>
+        <div className="nova-avatar"><img src="/ell-ex-logo.png" alt="ELL-EX" style={{width:'100%',height:'100%',objectFit:'cover',borderRadius:'50%'}} /></div>
         <div>
-          <strong>Nova</strong>
+          <strong>ELL-EX</strong>
           <small>Learning & Building Assistant</small>
         </div>
       </div>
