@@ -1,4 +1,6 @@
-const MAX_IMAGE_LENGTH = 11_000_000;
+// Base64 adds roughly one third to the original file size. Stay below
+// Vercel's function request limit after JSON overhead is included.
+const MAX_IMAGE_LENGTH = 3_900_000;
 
 export default async function handler(request, response) {
   if (request.method !== 'POST') {
@@ -38,7 +40,7 @@ export default async function handler(request, response) {
 
   try {
     const aiResponse = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent',
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(process.env.GEMINI_VISION_MODEL || 'gemini-3.8-flash')}:generateContent`,
       {
         method: 'POST',
         headers: {
@@ -61,7 +63,7 @@ export default async function handler(request, response) {
             }
           ],
           generationConfig: {
-            maxOutputTokens: 400
+            maxOutputTokens: 800
           }
         })
       }

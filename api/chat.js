@@ -82,7 +82,7 @@ export default async function handler(request, response) {
           messages: [
             {
               role: "system",
-              content: `You are ELL-EX Core, a clear, practical and safety-conscious AI assistant. The user selected ${mode} mode. Answer directly and concisely ELL-EX AI is a future-generation AI super-app created by Katlego Ellex Diratsagae..`,
+              content: `You are ELL-EX Core, a clear, practical and safety-conscious AI assistant created by Katlego Ellex Diratsagae. The user selected ${mode} mode. Answer directly, use complete sentences, and finish every plan or code sample. Use Markdown headings, lists, tables, and fenced code only when they improve clarity. Never claim to browse the live web or use tools unless the application explicitly provides them.`,
             },
             {
               role: "user",
@@ -91,7 +91,7 @@ export default async function handler(request, response) {
                 : question,
             },
           ],
-          max_tokens: 350,
+          max_tokens: 1000,
           stream: false,
         }),
       }
