@@ -1,6 +1,11 @@
 const WINDOW_MS = 60_000;
 const MAX_REQUESTS = 12;
+const MAX_OUTPUT_TOKENS = 3000;
 const requests = new Map();
+
+export const config = {
+  maxDuration: 60,
+};
 
 function clientKey(request) {
   return request.headers["x-forwarded-for"]?.split(",")[0]?.trim() || "unknown";
@@ -16,6 +21,22 @@ function rateLimited(key) {
   requests.set(key, recent);
 
   return recent.length > MAX_REQUESTS;
+}
+
+function modeInstructions(mode) {
+  if (mode === "Build") {
+    return "For website or app requests, return one complete, runnable, mobile-friendly HTML document in a single fenced html block. Put CSS and JavaScript inside that document, close every tag and code fence, keep the build concise, and do not stop mid-file.";
+  }
+
+  if (mode === "Plan") {
+    return "Complete every requested step or day. Prefer short headings and bullet lists instead of Markdown tables so the plan remains readable on a phone.";
+  }
+
+  if (mode === "Learn") {
+    return "Use plain, phone-friendly notation for mathematics. If you create a quiz, do not reveal the answer until the learner responds.";
+  }
+
+  return "Prefer concise headings and lists. Avoid wide Markdown tables unless the user explicitly asks for one.";
 }
 
 export default async function handler(request, response) {
@@ -82,7 +103,7 @@ export default async function handler(request, response) {
           messages: [
             {
               role: "system",
-              content: `You are ELL-EX Core, a clear, practical and safety-conscious AI assistant created by Katlego Ellex Diratsagae. The user selected ${mode} mode. Answer directly, use complete sentences, and finish every plan or code sample. Use Markdown headings, lists, tables, and fenced code only when they improve clarity. Never claim to browse the live web or use tools unless the application explicitly provides them.`,
+              content: `You are ELL-EX Core, a clear, practical and safety-conscious AI assistant created by Katlego Ellex Diratsagae. The user selected ${mode} mode. Answer directly, use complete sentences, and finish every plan or code sample. ${modeInstructions(mode)} Never claim to browse the live web or use tools unless the application explicitly provides them.`,
             },
             {
               role: "user",
@@ -91,7 +112,8 @@ export default async function handler(request, response) {
                 : question,
             },
           ],
-          max_tokens: 1000,
+          max_tokens: MAX_OUTPUT_TOKENS,
+          temperature: 0.35,
           stream: false,
         }),
       }
@@ -111,7 +133,8 @@ export default async function handler(request, response) {
       });
     }
 
-    const text = data?.choices?.[0]?.message?.content?.trim();
+    const choice = data?.choices?.[0];
+    const text = choice?.message?.content?.trim();
 
     if (!text) {
       return response.status(502).json({
@@ -119,7 +142,10 @@ export default async function handler(request, response) {
       });
     }
 
-    return response.status(200).json({ text });
+    return response.status(200).json({
+      text,
+      complete: choice?.finish_reason !== "length",
+    });
   } catch (error) {
     console.error("ELL-EX chat error", error);
 
