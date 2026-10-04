@@ -2,7 +2,7 @@ import React,{useEffect,useRef,useState} from 'react';
 import{createRoot}from'react-dom/client';
 import ReactMarkdown from'react-markdown';
 import remarkGfm from'remark-gfm';
-import{Home,Sparkles,GraduationCap,Users,Orbit,ShieldCheck,Settings,HelpCircle,Mic,Camera,Paperclip,MonitorUp,ArrowUp,MessageCircle,Code2,BookOpen,CalendarDays,Bell,BrainCircuit,Globe2,Palette,LockKeyhole,History,ChevronRight,Menu,X,Volume2,Plus,ScanLine,Copy,ThumbsUp,RotateCcw,ImageIcon}from'lucide-react';
+import{Home,Sparkles,GraduationCap,Users,Orbit,ShieldCheck,Settings,HelpCircle,Mic,Camera,Paperclip,MonitorUp,ArrowUp,MessageCircle,Code2,BookOpen,CalendarDays,Bell,BrainCircuit,Globe2,Palette,LockKeyhole,History,ChevronRight,Menu,X,Volume2,Pause,Square,Plus,ScanLine,Copy,ThumbsUp,RotateCcw,ImageIcon}from'lucide-react';
 import'./styles.css';
 
 
@@ -19,7 +19,37 @@ function Header({menu,setPrivate,privateMode,memory,setMemory,onNotify}){return 
 function demoAnswer(question,mode){const q=question.toLowerCase();if(q.includes('what can')||q.includes('help'))return{title:'Your idea, coordinated from one place',body:'ELL-EX can help you explore questions, shape creative concepts, plan projects, learn step by step, and turn ideas into build-ready action plans. The Intelligence Core selects the right specialist mode for each goal.',points:['Ask for clear explanations and practical next steps','Create concepts for brands, images, stories, and campaigns','Build structured plans for apps, websites, and businesses'],suggestions:['Plan my next project','Show me the Create tools','How does the Intelligence Team work?']};if(q.includes('business')||q.includes('money'))return{title:'Let’s turn the idea into a practical plan',body:'I can help organise the concept into a customer problem, solution, simple offer, launch steps, and ways to test demand before spending heavily.',points:['Define who the product helps','Create a small first version','Test it with real potential users'],suggestions:['Create a one-page business plan','Help me identify customers','Build a 30-day launch plan']};if(q.includes('app')||q.includes('website')||mode==='Build')return{title:'Your build team is ready',body:'ELL-EX can translate your idea into screens, features, user journeys, technical requirements, and an ordered development plan.',points:['Clarify the core user problem','Choose the smallest useful feature set','Create the screen and development roadmap'],suggestions:['Design the first screen','List the MVP features','Create a development roadmap']};if(mode==='Learn')return{title:'Adaptive learning path created',body:`I can break “${question}” into short lessons, examples, practice questions, and a progress plan that adapts to your pace.`,points:['Start with the key idea','Learn through a worked example','Check understanding with a short challenge'],suggestions:['Start lesson one','Explain it more simply','Give me a practice question']};if(mode==='Create')return{title:'Creative direction prepared',body:`For “${question}”, I can develop a focused concept, visual direction, message, and production checklist.`,points:['Choose one strong creative idea','Set the visual and writing style','Prepare the assets and final output'],suggestions:['Give me three concepts','Choose a visual style','Write the final creative brief']};return{title:'Intelligence Core has mapped your request',body:`I understand that you want help with “${question}”. I can clarify the goal, organise the work, and guide you through the next best actions.`,points:['Confirm the result you want','Break it into achievable steps','Begin with the highest-impact task'],suggestions:['Make a step-by-step plan','What should I do first?','Show me three approaches']}}
 function cleanText(value=''){return value.replace(/<br\s*\/?>/gi,'\n').replace(/\n{3,}/g,'\n\n').trim()}
 function RichText({children}){return <div className="answer-body"><ReactMarkdown remarkPlugins={[remarkGfm]}>{children||''}</ReactMarkdown></div>}
-function AnswerPanel({answer,onClose,onFollowUp,onRetry}){const[copied,setCopied]=useState(false);const copy=async()=>{try{await navigator.clipboard.writeText([answer.title,answer.body,...(answer.points||[])].filter(Boolean).join('\n\n'));setCopied(true);setTimeout(()=>setCopied(false),1600)}catch{setCopied(false)}};return <section className="answer" aria-live="polite"><div className="answer-top"><div className="answer-mark">{answer.imageUrl?<Palette/>:<BrainCircuit/>}</div><div><span className="demo-label">ELL-EX CORE · {answer.label||(answer.live?'LIVE AI':'DEMO MODE')}</span><h2>{answer.title}</h2></div><button className="answer-close" onClick={onClose} aria-label="Close answer"><X/></button></div>{answer.imageUrl&&<img className="generated-image" src={answer.imageUrl} alt={answer.prompt||'Image created by ELL-EX'}/>}<RichText>{answer.body}</RichText>{answer.points?.length>0&&<ul>{answer.points.map(point=><li key={point}>{point}</li>)}</ul>}<div className="answer-actions">{answer.imageUrl?<a href={answer.imageUrl} download="ell-ex-creation.jpg"><MonitorUp/>Download</a>:<button onClick={copy}><Copy/>{copied?'Copied':'Copy'}</button>}<button><ThumbsUp/>Helpful</button><button onClick={onRetry}><RotateCcw/>Try again</button></div>{answer.suggestions?.length>0&&<div className="suggestions"><span>Continue with</span>{answer.suggestions.map(item=><button key={item} onClick={()=>onFollowUp(item)}>{item}<ChevronRight/></button>)}</div>}</section>}
+function AnswerPanel({answer,onClose,onFollowUp,onRetry}){
+  const[copied,setCopied]=useState(false);
+  const[speechState,setSpeechState]=useState('idle');
+  const speechSupported=typeof window!=='undefined'&&'speechSynthesis'in window;
+  const speechText=[answer.title,answer.body,...(answer.points||[])].filter(Boolean).join('. ').replace(/[#*_`>|[\]()~-]/g,' ');
+
+  useEffect(()=>()=>{if(speechSupported)window.speechSynthesis.cancel()},[speechSupported]);
+
+  const copy=async()=>{try{await navigator.clipboard.writeText([answer.title,answer.body,...(answer.points||[])].filter(Boolean).join('\n\n'));setCopied(true);setTimeout(()=>setCopied(false),1600)}catch{setCopied(false)}};
+  const readAloud=()=>{
+    if(!speechSupported)return;
+    if(speechState==='paused'){
+      window.speechSynthesis.resume();
+      setSpeechState('speaking');
+      return;
+    }
+    window.speechSynthesis.cancel();
+    const utterance=new SpeechSynthesisUtterance(speechText);
+    utterance.lang='en-ZA';
+    utterance.rate=1;
+    utterance.onstart=()=>setSpeechState('speaking');
+    utterance.onend=()=>setSpeechState('idle');
+    utterance.onerror=()=>setSpeechState('idle');
+    window.speechSynthesis.speak(utterance);
+  };
+  const pauseSpeech=()=>{window.speechSynthesis.pause();setSpeechState('paused')};
+  const stopSpeech=()=>{window.speechSynthesis.cancel();setSpeechState('idle')};
+  const close=()=>{stopSpeech();onClose()};
+
+  return <section className="answer" aria-live="polite"><div className="answer-top"><div className="answer-mark">{answer.imageUrl?<Palette/>:<BrainCircuit/>}</div><div><span className="demo-label">ELL-EX CORE · {answer.label||(answer.live?'LIVE AI':'DEMO MODE')}</span><h2>{answer.title}</h2></div><button className="answer-close" onClick={close} aria-label="Close answer"><X/></button></div>{answer.imageUrl&&<img className="generated-image" src={answer.imageUrl} alt={answer.prompt||'Image created by ELL-EX'}/>}<RichText>{answer.body}</RichText>{answer.points?.length>0&&<ul>{answer.points.map(point=><li key={point}>{point}</li>)}</ul>}<div className="answer-actions">{answer.imageUrl?<a href={answer.imageUrl} download="ell-ex-creation.jpg"><MonitorUp/>Download</a>:<button onClick={copy}><Copy/>{copied?'Copied':'Copy'}</button>}{speechSupported&&<button onClick={readAloud} aria-label={speechState==='paused'?'Resume reading':'Read answer aloud'}><Volume2/>{speechState==='paused'?'Resume':speechState==='speaking'?'Reading…':'Read aloud'}</button>}{speechState==='speaking'&&<button onClick={pauseSpeech} aria-label="Pause reading"><Pause/>Pause</button>}{speechState!=='idle'&&<button onClick={stopSpeech} aria-label="Stop reading"><Square/>Stop</button>}<button><ThumbsUp/>Helpful</button><button onClick={onRetry}><RotateCcw/>Try again</button></div>{answer.suggestions?.length>0&&<div className="suggestions"><span>Continue with</span>{answer.suggestions.map(item=><button key={item} onClick={()=>onFollowUp(item)}>{item}<ChevronRight/></button>)}</div>}</section>
+}
 function Composer({mode,setMode}){
   const[text,setText]=useState('');
   const[loading,setLoading]=useState(false);
