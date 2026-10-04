@@ -22,30 +22,35 @@ function RichText({children}){return <div className="answer-body"><ReactMarkdown
 function AnswerPanel({answer,onClose,onFollowUp,onRetry}){
   const[copied,setCopied]=useState(false);
   const[speechState,setSpeechState]=useState('idle');
+  const speechPositionRef=useRef(0);
+  const speechRunRef=useRef(0);
   const speechSupported=typeof window!=='undefined'&&'speechSynthesis'in window;
   const speechText=[answer.title,answer.body,...(answer.points||[])].filter(Boolean).join('. ').replace(/[#*_`>|[\]()~-]/g,' ');
 
   useEffect(()=>()=>{if(speechSupported)window.speechSynthesis.cancel()},[speechSupported]);
 
   const copy=async()=>{try{await navigator.clipboard.writeText([answer.title,answer.body,...(answer.points||[])].filter(Boolean).join('\n\n'));setCopied(true);setTimeout(()=>setCopied(false),1600)}catch{setCopied(false)}};
-  const readAloud=()=>{
-    if(!speechSupported)return;
-    if(speechState==='paused'){
-      window.speechSynthesis.resume();
-      setSpeechState('speaking');
-      return;
-    }
+  const speakFrom=(position=0)=>{
+    const start=Math.max(0,Math.min(position,speechText.length));
+    const run=++speechRunRef.current;
     window.speechSynthesis.cancel();
-    const utterance=new SpeechSynthesisUtterance(speechText);
+    const utterance=new SpeechSynthesisUtterance(speechText.slice(start));
     utterance.lang='en-ZA';
     utterance.rate=1;
-    utterance.onstart=()=>setSpeechState('speaking');
-    utterance.onend=()=>setSpeechState('idle');
-    utterance.onerror=()=>setSpeechState('idle');
+    utterance.onstart=()=>{if(run===speechRunRef.current)setSpeechState('speaking')};
+    utterance.onboundary=event=>{if(run===speechRunRef.current&&typeof event.charIndex==='number')speechPositionRef.current=start+event.charIndex};
+    utterance.onend=()=>{if(run===speechRunRef.current){speechPositionRef.current=0;setSpeechState('idle')}};
+    utterance.onerror=()=>{if(run===speechRunRef.current)setSpeechState('idle')};
     window.speechSynthesis.speak(utterance);
   };
-  const pauseSpeech=()=>{window.speechSynthesis.pause();setSpeechState('paused')};
-  const stopSpeech=()=>{window.speechSynthesis.cancel();setSpeechState('idle')};
+  const readAloud=()=>{
+    if(!speechSupported)return;
+    if(speechState==='paused')return speakFrom(speechPositionRef.current);
+    speechPositionRef.current=0;
+    speakFrom(0);
+  };
+  const pauseSpeech=()=>{speechRunRef.current+=1;window.speechSynthesis.cancel();setSpeechState('paused')};
+  const stopSpeech=()=>{speechRunRef.current+=1;speechPositionRef.current=0;window.speechSynthesis.cancel();setSpeechState('idle')};
   const close=()=>{stopSpeech();onClose()};
 
   return <section className="answer" aria-live="polite"><div className="answer-top"><div className="answer-mark">{answer.imageUrl?<Palette/>:<BrainCircuit/>}</div><div><span className="demo-label">ELL-EX CORE · {answer.label||(answer.live?'LIVE AI':'DEMO MODE')}</span><h2>{answer.title}</h2></div><button className="answer-close" onClick={close} aria-label="Close answer"><X/></button></div>{answer.imageUrl&&<img className="generated-image" src={answer.imageUrl} alt={answer.prompt||'Image created by ELL-EX'}/>}<RichText>{answer.body}</RichText>{answer.points?.length>0&&<ul>{answer.points.map(point=><li key={point}>{point}</li>)}</ul>}<div className="answer-actions">{answer.imageUrl?<a href={answer.imageUrl} download="ell-ex-creation.jpg"><MonitorUp/>Download</a>:<button onClick={copy}><Copy/>{copied?'Copied':'Copy'}</button>}{speechSupported&&<button onClick={readAloud} aria-label={speechState==='paused'?'Resume reading':'Read answer aloud'}><Volume2/>{speechState==='paused'?'Resume':speechState==='speaking'?'Reading…':'Read aloud'}</button>}{speechState==='speaking'&&<button onClick={pauseSpeech} aria-label="Pause reading"><Pause/>Pause</button>}{speechState!=='idle'&&<button onClick={stopSpeech} aria-label="Stop reading"><Square/>Stop</button>}<button><ThumbsUp/>Helpful</button><button onClick={onRetry}><RotateCcw/>Try again</button></div>{answer.suggestions?.length>0&&<div className="suggestions"><span>Continue with</span>{answer.suggestions.map(item=><button key={item} onClick={()=>onFollowUp(item)}>{item}<ChevronRight/></button>)}</div>}</section>
