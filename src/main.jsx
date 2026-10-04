@@ -1,9 +1,10 @@
-import React,{useEffect,useRef,useState} from 'react';
+import React,{useEffect,useMemo,useRef,useState} from 'react';
 import{createRoot}from'react-dom/client';
 import ReactMarkdown from'react-markdown';
 import remarkGfm from'remark-gfm';
 import{Home,Sparkles,GraduationCap,Users,Orbit,ShieldCheck,Settings,HelpCircle,Mic,Camera,Paperclip,MonitorUp,ArrowUp,MessageCircle,Code2,BookOpen,CalendarDays,Bell,BrainCircuit,Globe2,Palette,LockKeyhole,History,ChevronRight,Menu,X,Volume2,Pause,Square,Plus,ScanLine,Copy,ThumbsUp,RotateCcw,ImageIcon}from'lucide-react';
 import'./styles.css';
+import{buildDownload,extractBuildDocument}from'./buildArtifact.js';
 
 
 const nav=[['Home',Home],['Create',Sparkles],['Learn',GraduationCap],['Agents',Users],['Worlds',Orbit],['Vault',ShieldCheck]];
@@ -21,11 +22,14 @@ function cleanText(value=''){return value.replace(/<br\s*\/?>/gi,'\n').replace(/
 function RichText({children}){return <div className="answer-body"><ReactMarkdown remarkPlugins={[remarkGfm]}>{children||''}</ReactMarkdown></div>}
 function AnswerPanel({answer,onClose,onFollowUp,onRetry}){
   const[copied,setCopied]=useState(false);
+  const[helpful,setHelpful]=useState(false);
+  const[previewOpen,setPreviewOpen]=useState(false);
   const[speechState,setSpeechState]=useState('idle');
   const speechChunkRef=useRef(0);
   const speechRunRef=useRef(0);
   const speechSupported=typeof window!=='undefined'&&'speechSynthesis'in window;
   const speechText=[answer.title,answer.body,...(answer.points||[])].filter(Boolean).join('. ').replace(/[#*_`>|[\]()~-]/g,' ');
+  const previewDocument=useMemo(()=>answer.mode==='Build'?extractBuildDocument(answer.body):'',[answer.body,answer.mode]);
 
   useEffect(()=>()=>{if(speechSupported)window.speechSynthesis.cancel()},[speechSupported]);
 
@@ -52,8 +56,19 @@ function AnswerPanel({answer,onClose,onFollowUp,onRetry}){
   const pauseSpeech=()=>{speechRunRef.current+=1;window.speechSynthesis.cancel();setSpeechState('paused')};
   const stopSpeech=()=>{speechRunRef.current+=1;speechChunkRef.current=0;window.speechSynthesis.cancel();setSpeechState('idle')};
   const close=()=>{stopSpeech();onClose()};
+  const download=()=>{
+    const artifact=buildDownload(answer.body);
+    const url=URL.createObjectURL(new Blob([artifact.content],{type:artifact.type}));
+    const anchor=window.document.createElement('a');
+    anchor.href=url;
+    anchor.download=artifact.filename;
+    window.document.body.append(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),1000);
+  };
 
-  return <section className="answer" aria-live="polite"><div className="answer-top"><div className="answer-mark">{answer.imageUrl?<Palette/>:<BrainCircuit/>}</div><div><span className="demo-label">ELL-EX CORE · {answer.label||(answer.live?'LIVE AI':'DEMO MODE')}</span><h2>{answer.title}</h2></div><button className="answer-close" onClick={close} aria-label="Close answer"><X/></button></div>{answer.imageUrl&&<img className="generated-image" src={answer.imageUrl} alt={answer.prompt||'Image created by ELL-EX'}/>}<RichText>{answer.body}</RichText>{answer.points?.length>0&&<ul>{answer.points.map(point=><li key={point}>{point}</li>)}</ul>}<div className="answer-actions">{answer.imageUrl?<a href={answer.imageUrl} download="ell-ex-creation.jpg"><MonitorUp/>Download</a>:<button onClick={copy}><Copy/>{copied?'Copied':'Copy'}</button>}{speechSupported&&<button onClick={readAloud} aria-label={speechState==='paused'?'Resume reading':'Read answer aloud'}><Volume2/>{speechState==='paused'?'Resume':speechState==='speaking'?'Reading…':'Read aloud'}</button>}{speechState==='speaking'&&<button onClick={pauseSpeech} aria-label="Pause reading"><Pause/>Pause</button>}{speechState!=='idle'&&<button onClick={stopSpeech} aria-label="Stop reading"><Square/>Stop</button>}<button><ThumbsUp/>Helpful</button><button onClick={onRetry}><RotateCcw/>Try again</button></div>{answer.suggestions?.length>0&&<div className="suggestions"><span>Continue with</span>{answer.suggestions.map(item=><button key={item} onClick={()=>onFollowUp(item)}>{item}<ChevronRight/></button>)}</div>}</section>
+  return <section className="answer" aria-live="polite"><div className="answer-top"><div className="answer-mark">{answer.imageUrl?<Palette/>:<BrainCircuit/>}</div><div><span className="demo-label">ELL-EX CORE · {answer.label||(answer.live?'LIVE AI':'DEMO MODE')}</span><h2>{answer.title}</h2></div><button className="answer-close" onClick={close} aria-label="Close answer"><X/></button></div>{answer.imageUrl&&<img className="generated-image" src={answer.imageUrl} alt={answer.prompt||'Image created by ELL-EX'}/>}<RichText>{answer.body}</RichText>{answer.points?.length>0&&<ul>{answer.points.map(point=><li key={point}>{point}</li>)}</ul>}{answer.complete===false&&<div className="completion-note" role="status"><span>This answer reached its length limit.</span><button onClick={()=>onFollowUp('Continue the previous response from exactly where it stopped. Do not repeat completed content.')}><RotateCcw/>Continue response</button></div>}<div className="answer-actions">{answer.imageUrl?<a href={answer.imageUrl} download="ell-ex-creation.jpg"><MonitorUp/>Download</a>:<button onClick={copy}><Copy/>{copied?'Copied':'Copy'}</button>}{answer.mode==='Build'&&<button onClick={download}><MonitorUp/>Download build</button>}{previewDocument&&<button onClick={()=>setPreviewOpen(true)}><Code2/>Preview build</button>}{speechSupported&&<button onClick={readAloud} aria-label={speechState==='paused'?'Resume reading':'Read answer aloud'}><Volume2/>{speechState==='paused'?'Resume':speechState==='speaking'?'Reading…':'Read aloud'}</button>}{speechState==='speaking'&&<button onClick={pauseSpeech} aria-label="Pause reading"><Pause/>Pause</button>}{speechState!=='idle'&&<button onClick={stopSpeech} aria-label="Stop reading"><Square/>Stop</button>}<button className={helpful?'helpful active':''} onClick={()=>setHelpful(true)} aria-pressed={helpful}><ThumbsUp/>{helpful?'Thanks!':'Helpful'}</button><button onClick={onRetry}><RotateCcw/>Try again</button></div>{helpful&&<span className="feedback-confirmation" role="status">Marked as helpful.</span>}{answer.suggestions?.length>0&&<div className="suggestions"><span>Continue with</span>{answer.suggestions.map(item=><button key={item} onClick={()=>onFollowUp(item)}>{item}<ChevronRight/></button>)}</div>}{previewOpen&&<div className="build-preview" role="dialog" aria-modal="true" aria-label="ELL-EX build preview"><div><b>Build preview</b><button onClick={()=>setPreviewOpen(false)} aria-label="Close build preview"><X/></button></div><iframe title="ELL-EX generated build" sandbox="allow-scripts" srcDoc={previewDocument}/></div>}</section>
 }
 function Composer({mode,setMode}){
   const[text,setText]=useState('');
@@ -260,7 +275,7 @@ function Composer({mode,setMode}){
         question:clean||(isVision?'Analyse this image':'Summarize this document'),
         document:attachedDocument,
         mode,
-        answer:{title:isVision?'ELL-EX Vision response':'ELL-EX Intelligence response',body:cleanText(data.text),points:[],suggestions:[],live:true,label:isVision?'VISION AI':'LIVE AI'}
+        answer:{title:isVision?'ELL-EX Vision response':'ELL-EX Intelligence response',body:cleanText(data.text),points:[],suggestions:[],live:true,label:isVision?'VISION AI':'LIVE AI',mode,complete:data.complete}
       }]);
       if(isVision)setPhoto(null);
       if(attachedDocument)setDocument(null);
@@ -299,5 +314,25 @@ function Lab(){return <section className="section lab"><div className="section-h
 function Core({tab,setTab}){return <aside className="core"><div className="core-title"><BrainCircuit/><div><h2>Intelligence Core</h2><p>Your controls. Your intelligence.</p></div></div><div className="tabs">{['Capabilities','Privacy','Memory'].map(t=><button className={tab===t?'active':''} onClick={()=>setTab(t)}>{t}</button>)}</div>{tab==='Capabilities'&&<div className="abilities">{abilities.map(([n,d,I,c])=><button key={n}><span className={c}><I/></span><div><b>{n}</b><small>{d}</small></div><ChevronRight/></button>)}</div>}{tab==='Privacy'&&<div className="panel-copy"><ShieldCheck/><h3>You own your data</h3><p>Choose what ELL-EX can see, remember, and use. Private mode keeps sessions temporary.</p><button>Review privacy controls</button></div>}{tab==='Memory'&&<div className="panel-copy"><BrainCircuit/><h3>Memory with permission</h3><p>ELL-EX builds a useful map of your goals and preferences only when you approve it.</p><button>Open memory map</button></div>}<div className="activity"><div><History/><h3>Recent activity</h3></div>{['Started Community Connect','ELL-EX created 3 app screens','Saved learning plan to Vault'].map((x,i)=><p key={x}><i/>{x}<small>{i+2}m</small></p>)}</div></aside>}
 function UtilityPage({type,memory,setMemory,privateMode,setPrivate,onHome}){if(type==='Settings')return <section className="placeholder utility-page"><Settings/><h1>Settings</h1><p>Control the ELL-EX experience on this device.</p><button onClick={()=>setMemory(!memory)}>Memory: {memory?'On':'Off'}</button><button onClick={()=>setPrivate(!privateMode)}>Private mode: {privateMode?'On':'Off'}</button><button className="secondary" onClick={onHome}>Return home</button></section>;return <section className="placeholder utility-page"><HelpCircle/><h1>Help</h1><p>Type a request, choose a mode, or attach a supported photo or document. For scanned PDFs, use a clear photo until OCR is added.</p><button onClick={onHome}>Return home</button></section>}
 function Vault({vaultFile,setVaultFile,onHome}){return <section className="placeholder"><LockKeyhole/><h1>Private Vault</h1><p>Choose a file to prepare it on this device.</p><input id="vault-file" type="file" hidden onChange={e=>setVaultFile(e.target.files?.[0]?.name||'')}/><button onClick={()=>window.document.getElementById('vault-file').click()}><Paperclip/> Choose file</button>{vaultFile&&<div className="vault-status" role="status"><b>{vaultFile}</b><span>Selected successfully. Permanent encrypted storage is not connected yet, so ELL-EX has not uploaded this file.</span></div>}<button className="secondary" onClick={onHome}>Return home</button></section>}
-function App(){const[active,setActive]=useState('Home');const[mode,setMode]=useState('Ask');const[open,setOpen]=useState(false);const[tab,setTab]=useState('Capabilities');const[memory,setMemory]=useState(true);const[privateMode,setPrivate]=useState(true);const[vaultFile,setVaultFile]=useState('');const[notice,setNotice]=useState('');useEffect(()=>{if(active==='Create'||active==='Learn')setMode(active)},[active]);useEffect(()=>{if(!notice)return;const timer=setTimeout(()=>setNotice(''),2600);return()=>clearTimeout(timer)},[notice]);const home=()=>setActive('Home');return <div className="app"><Sidebar {...{active,setActive,open,setOpen}}/><main><Header menu={()=>setOpen(true)} onNotify={()=>setNotice('You’re all caught up — no new notifications.')} {...{setPrivate,privateMode,memory,setMemory}}/>{notice&&<div className="app-notice" role="status">{notice}</div>}<div className="content"><div className="workspace">{!['Vault','Settings','Help'].includes(active)&&<Composer {...{mode,setMode}}/>}{active==='Home'?<><Agents/><Lab/></>:active==='Agents'?<Agents/>:active==='Worlds'?<Lab/>:(active==='Create'||active==='Learn')?null:active==='Vault'?<Vault {...{vaultFile,setVaultFile}} onHome={home}/>:<UtilityPage type={active} {...{memory,setMemory,privateMode,setPrivate}} onHome={home}/>}</div><Core {...{tab,setTab}}/></div><nav className="bottom">{nav.slice(0,5).map(([n,I])=><button key={n} className={active===n?'active':''} onClick={()=>setActive(n)}><I/><span>{n}</span></button>)}</nav></main></div>}
+function App(){
+  const[active,setActive]=useState('Home');
+  const[mode,setMode]=useState('Ask');
+  const[open,setOpen]=useState(false);
+  const[tab,setTab]=useState('Capabilities');
+  const[memory,setMemory]=useState(true);
+  const[privateMode,setPrivate]=useState(true);
+  const[vaultFile,setVaultFile]=useState('');
+  const[notice,setNotice]=useState('');
+
+  useEffect(()=>{if(active==='Create'||active==='Learn')setMode(active)},[active]);
+  useEffect(()=>{if(!notice)return;const timer=setTimeout(()=>setNotice(''),2600);return()=>clearTimeout(timer)},[notice]);
+
+  const navigate=target=>{
+    setActive(target);
+    setOpen(false);
+    window.requestAnimationFrame(()=>window.scrollTo({top:0,behavior:'smooth'}));
+  };
+
+  return <div className="app"><Sidebar active={active} setActive={navigate} open={open} setOpen={setOpen}/><main><Header menu={()=>setOpen(true)} onNotify={()=>setNotice('You’re all caught up — no new notifications.')} {...{setPrivate,privateMode,memory,setMemory}}/>{notice&&<div className="app-notice" role="status">{notice}</div>}<div className="content"><div className="workspace">{!['Vault','Settings','Help'].includes(active)&&<Composer {...{mode,setMode}}/>}{active==='Home'?<><Agents/><Lab/></>:active==='Agents'?<Agents/>:active==='Worlds'?<Lab/>:(active==='Create'||active==='Learn')?null:active==='Vault'?<Vault {...{vaultFile,setVaultFile}} onHome={()=>navigate('Home')}/>:<UtilityPage type={active} {...{memory,setMemory,privateMode,setPrivate}} onHome={()=>navigate('Home')}/>}</div><Core {...{tab,setTab}}/></div><nav className="bottom">{nav.slice(0,5).map(([n,I])=><button key={n} className={active===n?'active':''} onClick={()=>navigate(n)}><I/><span>{n}</span></button>)}</nav></main></div>
+}
 createRoot(document.getElementById('root')).render(<App/>);
