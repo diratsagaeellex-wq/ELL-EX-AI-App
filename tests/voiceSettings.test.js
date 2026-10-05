@@ -1,5 +1,6 @@
 import test from'node:test';
 import assert from'node:assert/strict';
+import{readFile}from'node:fs/promises';
 import{DEFAULT_VOICE_SETTINGS,normalizeVoiceSettings,readVoiceSettings,writeVoiceSettings}from'../src/voiceSettings.js';
 
 test('normalizes and safely clamps voice preferences',()=>{
@@ -20,4 +21,11 @@ test('falls back safely when stored data is invalid',()=>{
   const storage={getItem:()=>'{broken',setItem:()=>{throw new Error('blocked')}};
   assert.deepEqual(readVoiceSettings(storage),DEFAULT_VOICE_SETTINGS);
   assert.equal(writeVoiceSettings(DEFAULT_VOICE_SETTINGS,storage),false);
+});
+
+test('uses an in-app voice picker instead of the Android native select',async()=>{
+  const source=await readFile(new URL('../src/main.jsx',import.meta.url),'utf8');
+  assert.match(source,/className="voice-picker-button"/);
+  assert.match(source,/role="listbox"/);
+  assert.doesNotMatch(source,/<select[^>]*voiceSettings\.voiceURI/);
 });
