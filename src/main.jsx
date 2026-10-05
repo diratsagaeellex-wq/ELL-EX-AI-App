@@ -2,10 +2,11 @@ import React,{useEffect,useMemo,useRef,useState} from 'react';
 import{createRoot}from'react-dom/client';
 import ReactMarkdown from'react-markdown';
 import remarkGfm from'remark-gfm';
-import{Home,Sparkles,GraduationCap,Users,Orbit,ShieldCheck,Settings,HelpCircle,Mic,Camera,Paperclip,MonitorUp,ArrowUp,MessageCircle,Code2,BookOpen,CalendarDays,Bell,BrainCircuit,Globe2,Palette,LockKeyhole,History,ChevronRight,ChevronDown,Menu,X,Volume2,Pause,Square,Plus,ScanLine,Copy,ThumbsUp,RotateCcw,ImageIcon}from'lucide-react';
+import{Home,Sparkles,GraduationCap,Users,Orbit,ShieldCheck,Settings,HelpCircle,Mic,Camera,Paperclip,MonitorUp,ArrowUp,ArrowLeft,MessageCircle,Code2,BookOpen,CalendarDays,Bell,BrainCircuit,Globe2,Palette,LockKeyhole,History,ChevronRight,ChevronDown,Menu,X,Volume2,Pause,Square,Plus,ScanLine,Copy,ThumbsUp,RotateCcw,ImageIcon,Play,GitFork,CheckCircle2}from'lucide-react';
 import'./styles.css';
 import{buildDownload,extractBuildDocument}from'./buildArtifact.js';
 import{readVoiceSettings,writeVoiceSettings}from'./voiceSettings.js';
+import{FUTURE_PROJECTS,continueFutureProject,readFutureLabState,remixFutureProject,writeFutureLabState}from'./futureLab.js';
 
 
 const nav=[['Home',Home],['Create',Sparkles],['Learn',GraduationCap],['Agents',Users],['Worlds',Orbit],['Vault',ShieldCheck]];
@@ -319,7 +320,28 @@ function Composer({mode,setMode,voiceSettings,availableVoices}){
   </>
 }
 function Agents(){return <section className="section"><div className="section-head"><div><Users/><h2>Your Intelligence Team</h2><span>Specialists assemble for every goal</span></div><button>Manage agents <ChevronRight/></button></div><div className="agents"><article><div className="agent-icon ell"><img src="/ell-ex-logo.png"/></div><div><b>ELL-EX Core</b><span><i/> Orchestrating</span><p>Understands your goal and brings the right minds together.</p></div></article><article><div className="agent-icon">E</div><div><b>ELL-EX</b><span><i/> Building</span><p>Turns ideas into products, code, media and automations.</p></div></article><article><div className="agent-icon sage">S</div><div><b>Sage</b><span><i/> Learning</span><p>Adapts explanations to your language, level and pace.</p></div></article></div></section>}
-function Lab(){return <section className="section lab"><div className="section-head"><div><Sparkles/><h2>Future Lab</h2><span>Ideas becoming real</span></div><button>View all <ChevronRight/></button></div><div className="projects"><article><div className="orb city">◒</div><div><b>Sustainable City World</b><p>Simulate a greener tomorrow</p><span>42% mapped</span></div></article><article><div className="orb app"><Code2/></div><div><b>Community Connect</b><p>Building your first prototype</p><span>7 screens ready</span></div></article><article><div className="orb learn"><Globe2/></div><div><b>Language Journey</b><p>Adaptive Setswana · English tutor</p><span>Next lesson ready</span></div></article></div></section>}
+function ProjectIcon({project}){return <div className={`orb ${project.kind}`}>{project.kind==='city'?'◒':project.kind==='app'?<Code2/>:<Globe2/>}</div>}
+function ProgressMeter({progress,label}){return <div className="project-meter" role="progressbar" aria-label={label} aria-valuemin="0" aria-valuemax="100" aria-valuenow={progress}><i style={{width:`${progress}%`}}/></div>}
+function Lab({futureLabState,onOpen,onViewAll}){return <section className="section lab"><div className="section-head"><div><Sparkles/><h2>Future Lab</h2><span>Ideas becoming real</span></div><button onClick={onViewAll}>View all <ChevronRight/></button></div><div className="projects">{FUTURE_PROJECTS.map(project=>{const progress=futureLabState.progress[project.id];const hasRemix=Boolean(futureLabState.remixes[project.id]);return <button type="button" className="project-card" key={project.id} onClick={()=>onOpen(project.id)} aria-label={`Open ${project.title}`}><ProjectIcon project={project}/><span className="project-card-copy"><b>{project.title}</b><small>{project.summary}</small><span>{progress}% {project.progressVerb}{hasRemix?' · My remix ready':''}</span><ProgressMeter progress={progress} label={`${project.title} ${progress}% complete`}/></span><ChevronRight className="project-chevron"/></button>})}</div></section>}
+function FutureProject({projectId,futureLabState,setFutureLabState,onBack,onNotice}){
+  const[copy,setCopy]=useState('original');
+  const project=FUTURE_PROJECTS.find(item=>item.id===projectId);
+  if(!project)return null;
+  const remix=futureLabState.remixes[project.id];
+  const progress=copy==='remix'?(remix?.progress??0):futureLabState.progress[project.id];
+  const stepIndex=Math.min(project.nextSteps.length-1,Math.floor(progress/34));
+  const nextStep=progress>=100?'Project complete — ready to share':project.nextSteps[stepIndex];
+  const continueProject=()=>{
+    setFutureLabState(current=>continueFutureProject(current,project.id,copy));
+    onNotice(`${copy==='remix'?'My remix':project.title} saved on this device.`);
+  };
+  const remixProject=()=>{
+    setFutureLabState(current=>remixFutureProject(current,project.id));
+    setCopy('remix');
+    onNotice('Your personal remix is ready. The original was kept unchanged.');
+  };
+  return <section className="future-project-page"><button className="project-back" onClick={onBack}><ArrowLeft/>Future Lab</button><div className="project-hero"><ProjectIcon project={project}/><div><span className="project-kicker">{copy==='remix'?'MY PERSONAL REMIX':'FUTURE LAB PROJECT'}</span><h1>{project.title}</h1><p>{project.summary}</p></div></div><p className="project-description">{project.description}</p>{remix&&<div className="project-copy-tabs" role="group" aria-label="Project copy"><button className={copy==='original'?'active':''} onClick={()=>setCopy('original')}>Original</button><button className={copy==='remix'?'active':''} onClick={()=>setCopy('remix')}>My remix</button></div>}<div className="project-workspace"><div className="project-progress-row"><div><span>{copy==='remix'?'My remix progress':'Current progress'}</span><strong>{progress}%</strong></div><ProgressMeter progress={progress} label={`${copy==='remix'?'My remix':project.title} ${progress}% complete`}/><small><CheckCircle2/>Saved on this device</small></div><div className="project-next"><span>NEXT STEP</span><h2>{nextStep}</h2><p>{progress>=100?'You can keep this project as a finished concept or create a fresh remix.':'Continue to move this project forward by one focused checkpoint.'}</p></div></div><div className="project-actions"><button className="project-continue" onClick={continueProject} disabled={progress>=100}><Play/>{progress>=100?'Project complete':'Continue project'}</button><button className="project-remix" onClick={remixProject}><GitFork/>{remix?'Open my remix':'Remix this project'}</button></div>{remix&&copy==='original'&&<p className="remix-note">Your personal remix is separate and currently {remix.progress}% complete.</p>}</section>
+}
 function Core({tab,setTab}){return <aside className="core"><div className="core-title"><BrainCircuit/><div><h2>Intelligence Core</h2><p>Your controls. Your intelligence.</p></div></div><div className="tabs">{['Capabilities','Privacy','Memory'].map(t=><button className={tab===t?'active':''} onClick={()=>setTab(t)}>{t}</button>)}</div>{tab==='Capabilities'&&<div className="abilities">{abilities.map(([n,d,I,c])=><button key={n}><span className={c}><I/></span><div><b>{n}</b><small>{d}</small></div><ChevronRight/></button>)}</div>}{tab==='Privacy'&&<div className="panel-copy"><ShieldCheck/><h3>You own your data</h3><p>Choose what ELL-EX can see, remember, and use. Private mode keeps sessions temporary.</p><button>Review privacy controls</button></div>}{tab==='Memory'&&<div className="panel-copy"><BrainCircuit/><h3>Memory with permission</h3><p>ELL-EX builds a useful map of your goals and preferences only when you approve it.</p><button>Open memory map</button></div>}<div className="activity"><div><History/><h3>Recent activity</h3></div>{['Started Community Connect','ELL-EX created 3 app screens','Saved learning plan to Vault'].map((x,i)=><p key={x}><i/>{x}<small>{i+2}m</small></p>)}</div></aside>}
 function VoiceSettings({voiceSettings,setVoiceSettings,availableVoices}){
   const[voiceMenuOpen,setVoiceMenuOpen]=useState(false);
@@ -356,10 +378,13 @@ function App(){
   const[notice,setNotice]=useState('');
   const[voiceSettings,setVoiceSettings]=useState(readVoiceSettings);
   const[availableVoices,setAvailableVoices]=useState([]);
+  const[futureLabState,setFutureLabState]=useState(readFutureLabState);
+  const[selectedProjectId,setSelectedProjectId]=useState('');
 
   useEffect(()=>{if(active==='Create'||active==='Learn')setMode(active)},[active]);
   useEffect(()=>{if(!notice)return;const timer=setTimeout(()=>setNotice(''),2600);return()=>clearTimeout(timer)},[notice]);
   useEffect(()=>{writeVoiceSettings(voiceSettings)},[voiceSettings]);
+  useEffect(()=>{writeFutureLabState(futureLabState)},[futureLabState]);
   useEffect(()=>{
     if(!('speechSynthesis'in window))return;
     const refreshVoices=()=>setAvailableVoices(window.speechSynthesis.getVoices().slice().sort((a,b)=>a.name.localeCompare(b.name)));
@@ -370,10 +395,16 @@ function App(){
 
   const navigate=target=>{
     setActive(target);
+    setSelectedProjectId('');
     setOpen(false);
     window.requestAnimationFrame(()=>window.scrollTo({top:0,behavior:'smooth'}));
   };
+  const openProject=projectId=>{
+    setSelectedProjectId(projectId);
+    window.requestAnimationFrame(()=>window.scrollTo({top:0,behavior:'smooth'}));
+  };
+  const labProps={futureLabState,onOpen:openProject,onViewAll:()=>navigate('Worlds')};
 
-  return <div className="app"><Sidebar active={active} setActive={navigate} open={open} setOpen={setOpen}/><main><Header menu={()=>setOpen(true)} onNotify={()=>setNotice('You’re all caught up — no new notifications.')} {...{setPrivate,privateMode,memory,setMemory}}/>{notice&&<div className="app-notice" role="status">{notice}</div>}<div className="content"><div className="workspace">{!['Vault','Settings','Help'].includes(active)&&<Composer {...{mode,setMode,voiceSettings,availableVoices}}/>}{active==='Home'?<><Agents/><Lab/></>:active==='Agents'?<Agents/>:active==='Worlds'?<Lab/>:(active==='Create'||active==='Learn')?null:active==='Vault'?<Vault {...{vaultFile,setVaultFile}} onHome={()=>navigate('Home')}/>:<UtilityPage type={active} {...{memory,setMemory,privateMode,setPrivate,voiceSettings,setVoiceSettings,availableVoices}} onHome={()=>navigate('Home')}/>}</div><Core {...{tab,setTab}}/></div><nav className="bottom">{nav.slice(0,5).map(([n,I])=><button key={n} className={active===n?'active':''} onClick={()=>navigate(n)}><I/><span>{n}</span></button>)}</nav></main></div>
+  return <div className="app"><Sidebar active={active} setActive={navigate} open={open} setOpen={setOpen}/><main><Header menu={()=>setOpen(true)} onNotify={()=>setNotice('You’re all caught up — no new notifications.')} {...{setPrivate,privateMode,memory,setMemory}}/>{notice&&<div className="app-notice" role="status">{notice}</div>}<div className="content"><div className="workspace">{!selectedProjectId&&!['Vault','Settings','Help'].includes(active)&&<Composer {...{mode,setMode,voiceSettings,availableVoices}}/>}{selectedProjectId?<FutureProject projectId={selectedProjectId} {...{futureLabState,setFutureLabState}} onBack={()=>setSelectedProjectId('')} onNotice={setNotice}/>:active==='Home'?<><Agents/><Lab {...labProps}/></>:active==='Agents'?<Agents/>:active==='Worlds'?<Lab {...labProps}/>:(active==='Create'||active==='Learn')?null:active==='Vault'?<Vault {...{vaultFile,setVaultFile}} onHome={()=>navigate('Home')}/>:<UtilityPage type={active} {...{memory,setMemory,privateMode,setPrivate,voiceSettings,setVoiceSettings,availableVoices}} onHome={()=>navigate('Home')}/>}</div><Core {...{tab,setTab}}/></div><nav className="bottom">{nav.slice(0,5).map(([n,I])=><button key={n} className={active===n&&!selectedProjectId?'active':''} onClick={()=>navigate(n)}><I/><span>{n}</span></button>)}</nav></main></div>
 }
 createRoot(document.getElementById('root')).render(<App/>);
