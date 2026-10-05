@@ -359,7 +359,7 @@ function App(){
 
   useEffect(()=>{if(active==='Create'||active==='Learn')setMode(active)},[active]);
   useEffect(()=>{if(!notice)return;const timer=setTimeout(()=>setNotice(''),2600);return()=>clearTimeout(timer)},[notice]);
-  useEffect(()=>writeVoiceSettings(voiceSettings),[voiceSettings]);
+  useEffect(()=>{writeVoiceSettings(voiceSettings)},[voiceSettings]);
   useEffect(()=>{
     if(!('speechSynthesis'in window))return;
     const refreshVoices=()=>setAvailableVoices(window.speechSynthesis.getVoices().slice().sort((a,b)=>a.name.localeCompare(b.name)));
