@@ -2,9 +2,10 @@ import React,{useEffect,useMemo,useRef,useState} from 'react';
 import{createRoot}from'react-dom/client';
 import ReactMarkdown from'react-markdown';
 import remarkGfm from'remark-gfm';
-import{Home,Sparkles,GraduationCap,Users,Orbit,ShieldCheck,Settings,HelpCircle,Mic,Camera,Paperclip,MonitorUp,ArrowUp,MessageCircle,Code2,BookOpen,CalendarDays,Bell,BrainCircuit,Globe2,Palette,LockKeyhole,History,ChevronRight,Menu,X,Volume2,Pause,Square,Plus,ScanLine,Copy,ThumbsUp,RotateCcw,ImageIcon}from'lucide-react';
+import{Home,Sparkles,GraduationCap,Users,Orbit,ShieldCheck,Settings,HelpCircle,Mic,Camera,Paperclip,MonitorUp,ArrowUp,MessageCircle,Code2,BookOpen,CalendarDays,Bell,BrainCircuit,Globe2,Palette,LockKeyhole,History,ChevronRight,ChevronDown,Menu,X,Volume2,Pause,Square,Plus,ScanLine,Copy,ThumbsUp,RotateCcw,ImageIcon}from'lucide-react';
 import'./styles.css';
 import{buildDownload,extractBuildDocument}from'./buildArtifact.js';
+import{readVoiceSettings,writeVoiceSettings}from'./voiceSettings.js';
 
 
 const nav=[['Home',Home],['Create',Sparkles],['Learn',GraduationCap],['Agents',Users],['Worlds',Orbit],['Vault',ShieldCheck]];
@@ -20,7 +21,7 @@ function Header({menu,setPrivate,privateMode,memory,setMemory,onNotify}){return 
 function demoAnswer(question,mode){const q=question.toLowerCase();if(q.includes('what can')||q.includes('help'))return{title:'Your idea, coordinated from one place',body:'ELL-EX can help you explore questions, shape creative concepts, plan projects, learn step by step, and turn ideas into build-ready action plans. The Intelligence Core selects the right specialist mode for each goal.',points:['Ask for clear explanations and practical next steps','Create concepts for brands, images, stories, and campaigns','Build structured plans for apps, websites, and businesses'],suggestions:['Plan my next project','Show me the Create tools','How does the Intelligence Team work?']};if(q.includes('business')||q.includes('money'))return{title:'Let’s turn the idea into a practical plan',body:'I can help organise the concept into a customer problem, solution, simple offer, launch steps, and ways to test demand before spending heavily.',points:['Define who the product helps','Create a small first version','Test it with real potential users'],suggestions:['Create a one-page business plan','Help me identify customers','Build a 30-day launch plan']};if(q.includes('app')||q.includes('website')||mode==='Build')return{title:'Your build team is ready',body:'ELL-EX can translate your idea into screens, features, user journeys, technical requirements, and an ordered development plan.',points:['Clarify the core user problem','Choose the smallest useful feature set','Create the screen and development roadmap'],suggestions:['Design the first screen','List the MVP features','Create a development roadmap']};if(mode==='Learn')return{title:'Adaptive learning path created',body:`I can break “${question}” into short lessons, examples, practice questions, and a progress plan that adapts to your pace.`,points:['Start with the key idea','Learn through a worked example','Check understanding with a short challenge'],suggestions:['Start lesson one','Explain it more simply','Give me a practice question']};if(mode==='Create')return{title:'Creative direction prepared',body:`For “${question}”, I can develop a focused concept, visual direction, message, and production checklist.`,points:['Choose one strong creative idea','Set the visual and writing style','Prepare the assets and final output'],suggestions:['Give me three concepts','Choose a visual style','Write the final creative brief']};return{title:'Intelligence Core has mapped your request',body:`I understand that you want help with “${question}”. I can clarify the goal, organise the work, and guide you through the next best actions.`,points:['Confirm the result you want','Break it into achievable steps','Begin with the highest-impact task'],suggestions:['Make a step-by-step plan','What should I do first?','Show me three approaches']}}
 function cleanText(value=''){return value.replace(/<br\s*\/?>/gi,'\n').replace(/\n{3,}/g,'\n\n').trim()}
 function RichText({children}){return <div className="answer-body"><ReactMarkdown remarkPlugins={[remarkGfm]}>{children||''}</ReactMarkdown></div>}
-function AnswerPanel({answer,onClose,onFollowUp,onRetry}){
+function AnswerPanel({answer,onClose,onFollowUp,onRetry,voiceSettings,availableVoices}){
   const[copied,setCopied]=useState(false);
   const[helpful,setHelpful]=useState(false);
   const[previewOpen,setPreviewOpen]=useState(false);
@@ -40,13 +41,21 @@ function AnswerPanel({answer,onClose,onFollowUp,onRetry}){
     const run=++speechRunRef.current;
     window.speechSynthesis.cancel();
     const utterance=new SpeechSynthesisUtterance(speechChunks[start]);
-    utterance.lang='en-ZA';
-    utterance.rate=1;
+    const selectedVoice=availableVoices.find(voice=>voice.voiceURI===voiceSettings.voiceURI);
+    if(selectedVoice)utterance.voice=selectedVoice;
+    utterance.lang=selectedVoice?.lang||'en-ZA';
+    utterance.rate=voiceSettings.rate;
+    utterance.pitch=voiceSettings.pitch;
     utterance.onstart=()=>{if(run===speechRunRef.current){speechChunkRef.current=start;setSpeechState('speaking')}};
     utterance.onend=()=>{if(run!==speechRunRef.current)return;if(start+1<speechChunks.length){speechChunkRef.current=start+1;speakChunk(start+1)}else{speechChunkRef.current=0;setSpeechState('idle')}};
     utterance.onerror=()=>{if(run===speechRunRef.current)setSpeechState('idle')};
     window.speechSynthesis.speak(utterance);
   };
+  useEffect(()=>{
+    if(!speechSupported||!answer.live||!voiceSettings.autoRead)return;
+    const timer=window.setTimeout(()=>speakChunk(0),120);
+    return()=>window.clearTimeout(timer);
+  },[]);
   const readAloud=()=>{
     if(!speechSupported)return;
     if(speechState==='paused')return speakChunk(speechChunkRef.current);
@@ -70,7 +79,7 @@ function AnswerPanel({answer,onClose,onFollowUp,onRetry}){
 
   return <section className="answer" aria-live="polite"><div className="answer-top"><div className="answer-mark">{answer.imageUrl?<Palette/>:<BrainCircuit/>}</div><div><span className="demo-label">ELL-EX CORE · {answer.label||(answer.live?'LIVE AI':'DEMO MODE')}</span><h2>{answer.title}</h2></div><button className="answer-close" onClick={close} aria-label="Close answer"><X/></button></div>{answer.imageUrl&&<img className="generated-image" src={answer.imageUrl} alt={answer.prompt||'Image created by ELL-EX'}/>}<RichText>{answer.body}</RichText>{answer.points?.length>0&&<ul>{answer.points.map(point=><li key={point}>{point}</li>)}</ul>}{answer.complete===false&&<div className="completion-note" role="status"><span>This answer reached its length limit.</span><button onClick={()=>onFollowUp('Continue the previous response from exactly where it stopped. Do not repeat completed content.')}><RotateCcw/>Continue response</button></div>}<div className="answer-actions">{answer.imageUrl?<a href={answer.imageUrl} download="ell-ex-creation.jpg"><MonitorUp/>Download</a>:<button onClick={copy}><Copy/>{copied?'Copied':'Copy'}</button>}{answer.mode==='Build'&&<button onClick={download}><MonitorUp/>Download build</button>}{previewDocument&&<button onClick={()=>setPreviewOpen(true)}><Code2/>Preview build</button>}{speechSupported&&<button onClick={readAloud} aria-label={speechState==='paused'?'Resume reading':'Read answer aloud'}><Volume2/>{speechState==='paused'?'Resume':speechState==='speaking'?'Reading…':'Read aloud'}</button>}{speechState==='speaking'&&<button onClick={pauseSpeech} aria-label="Pause reading"><Pause/>Pause</button>}{speechState!=='idle'&&<button onClick={stopSpeech} aria-label="Stop reading"><Square/>Stop</button>}<button className={helpful?'helpful active':''} onClick={()=>setHelpful(true)} aria-pressed={helpful}><ThumbsUp/>{helpful?'Thanks!':'Helpful'}</button><button onClick={onRetry}><RotateCcw/>Try again</button></div>{helpful&&<span className="feedback-confirmation" role="status">Marked as helpful.</span>}{answer.suggestions?.length>0&&<div className="suggestions"><span>Continue with</span>{answer.suggestions.map(item=><button key={item} onClick={()=>onFollowUp(item)}>{item}<ChevronRight/></button>)}</div>}{previewOpen&&<div className="build-preview" role="dialog" aria-modal="true" aria-label="ELL-EX build preview"><div><b>Build preview</b><button onClick={()=>setPreviewOpen(false)} aria-label="Close build preview"><X/></button></div><iframe title="ELL-EX generated build" sandbox="allow-scripts" srcDoc={previewDocument}/></div>}</section>
 }
-function Composer({mode,setMode}){
+function Composer({mode,setMode,voiceSettings,availableVoices}){
   const[text,setText]=useState('');
   const[loading,setLoading]=useState(false);
   const[messages,setMessages]=useState([]);
@@ -303,7 +312,7 @@ function Composer({mode,setMode}){
     {messages.length>0&&<div className="answer-actions"><button onClick={newChat}><Plus/>New chat</button></div>}
     {messages.map(message=><React.Fragment key={message.id}>
       <section className="answer"><div className="answer-top"><div className="answer-mark"><MessageCircle/></div><div><span className="demo-label">YOU · {message.mode.toUpperCase()}</span><h2>{message.question}</h2></div></div></section>
-      <AnswerPanel answer={message.answer} onClose={()=>removeMessage(message.id)} onRetry={()=>run(message.question,message.id,message.document)} onFollowUp={run}/>
+      <AnswerPanel answer={message.answer} onClose={()=>removeMessage(message.id)} onRetry={()=>run(message.question,message.id,message.document)} onFollowUp={run} {...{voiceSettings,availableVoices}}/>
     </React.Fragment>)}
     {loading&&<div className="thinking"><BrainCircuit/><div><b>{mode==='Create'?'ELL-EX is creating your image':'Intelligence Core is thinking'}</b><span>{mode==='Create'?'This can take a little longer…':'Using this conversation to prepare the next response…'}</span></div><i/><i/><i/></div>}
     <div className="modes">{modes.map(([n,d,I])=><button key={n} className={mode===n?'selected':''} onClick={()=>setMode(n)}><I/><span><b>{n}</b><small>{d}</small></span></button>)}</div>
@@ -312,7 +321,29 @@ function Composer({mode,setMode}){
 function Agents(){return <section className="section"><div className="section-head"><div><Users/><h2>Your Intelligence Team</h2><span>Specialists assemble for every goal</span></div><button>Manage agents <ChevronRight/></button></div><div className="agents"><article><div className="agent-icon ell"><img src="/ell-ex-logo.png"/></div><div><b>ELL-EX Core</b><span><i/> Orchestrating</span><p>Understands your goal and brings the right minds together.</p></div></article><article><div className="agent-icon">E</div><div><b>ELL-EX</b><span><i/> Building</span><p>Turns ideas into products, code, media and automations.</p></div></article><article><div className="agent-icon sage">S</div><div><b>Sage</b><span><i/> Learning</span><p>Adapts explanations to your language, level and pace.</p></div></article></div></section>}
 function Lab(){return <section className="section lab"><div className="section-head"><div><Sparkles/><h2>Future Lab</h2><span>Ideas becoming real</span></div><button>View all <ChevronRight/></button></div><div className="projects"><article><div className="orb city">◒</div><div><b>Sustainable City World</b><p>Simulate a greener tomorrow</p><span>42% mapped</span></div></article><article><div className="orb app"><Code2/></div><div><b>Community Connect</b><p>Building your first prototype</p><span>7 screens ready</span></div></article><article><div className="orb learn"><Globe2/></div><div><b>Language Journey</b><p>Adaptive Setswana · English tutor</p><span>Next lesson ready</span></div></article></div></section>}
 function Core({tab,setTab}){return <aside className="core"><div className="core-title"><BrainCircuit/><div><h2>Intelligence Core</h2><p>Your controls. Your intelligence.</p></div></div><div className="tabs">{['Capabilities','Privacy','Memory'].map(t=><button className={tab===t?'active':''} onClick={()=>setTab(t)}>{t}</button>)}</div>{tab==='Capabilities'&&<div className="abilities">{abilities.map(([n,d,I,c])=><button key={n}><span className={c}><I/></span><div><b>{n}</b><small>{d}</small></div><ChevronRight/></button>)}</div>}{tab==='Privacy'&&<div className="panel-copy"><ShieldCheck/><h3>You own your data</h3><p>Choose what ELL-EX can see, remember, and use. Private mode keeps sessions temporary.</p><button>Review privacy controls</button></div>}{tab==='Memory'&&<div className="panel-copy"><BrainCircuit/><h3>Memory with permission</h3><p>ELL-EX builds a useful map of your goals and preferences only when you approve it.</p><button>Open memory map</button></div>}<div className="activity"><div><History/><h3>Recent activity</h3></div>{['Started Community Connect','ELL-EX created 3 app screens','Saved learning plan to Vault'].map((x,i)=><p key={x}><i/>{x}<small>{i+2}m</small></p>)}</div></aside>}
-function UtilityPage({type,memory,setMemory,privateMode,setPrivate,onHome}){if(type==='Settings')return <section className="placeholder utility-page"><Settings/><h1>Settings</h1><p>Control the ELL-EX experience on this device.</p><button onClick={()=>setMemory(!memory)}>Memory: {memory?'On':'Off'}</button><button onClick={()=>setPrivate(!privateMode)}>Private mode: {privateMode?'On':'Off'}</button><button className="secondary" onClick={onHome}>Return home</button></section>;return <section className="placeholder utility-page"><HelpCircle/><h1>Help</h1><p>Type a request, choose a mode, or attach a supported photo or document. For scanned PDFs, use a clear photo until OCR is added.</p><button onClick={onHome}>Return home</button></section>}
+function VoiceSettings({voiceSettings,setVoiceSettings,availableVoices}){
+  const[voiceMenuOpen,setVoiceMenuOpen]=useState(false);
+  const speechSupported=typeof window!=='undefined'&&'speechSynthesis'in window;
+  const selectedVoice=availableVoices.find(voice=>voice.voiceURI===voiceSettings.voiceURI);
+  const update=change=>setVoiceSettings(current=>({...current,...change}));
+  const chooseVoice=voiceURI=>{
+    setVoiceMenuOpen(false);
+    update({voiceURI});
+  };
+  const previewVoice=()=>{
+    if(!speechSupported)return;
+    window.speechSynthesis.cancel();
+    const utterance=new SpeechSynthesisUtterance('Hello, I am ELL-EX. This is your selected voice.');
+    if(selectedVoice)utterance.voice=selectedVoice;
+    utterance.lang=selectedVoice?.lang||'en-ZA';
+    utterance.rate=voiceSettings.rate;
+    utterance.pitch=voiceSettings.pitch;
+    window.speechSynthesis.speak(utterance);
+  };
+
+  return <div className="voice-settings-card"><div className="settings-card-title"><Volume2/><div><h2>Voice</h2><p>Choose how ELL-EX reads answers aloud on this device.</p></div></div>{speechSupported?<><div className="setting-field"><span>Voice</span><div className="voice-picker"><button type="button" className="voice-picker-button" aria-haspopup="listbox" aria-expanded={voiceMenuOpen} onClick={()=>setVoiceMenuOpen(open=>!open)}><span>{selectedVoice?`${selectedVoice.name} (${selectedVoice.lang})`:'Automatic (device default)'}</span><ChevronDown/></button>{voiceMenuOpen&&<div className="voice-options" role="listbox" aria-label="Voice"><button type="button" role="option" aria-selected={!voiceSettings.voiceURI} className={!voiceSettings.voiceURI?'selected':''} onClick={()=>chooseVoice('')}>Automatic (device default)</button>{availableVoices.map((voice,index)=><button type="button" role="option" aria-selected={voiceSettings.voiceURI===voice.voiceURI} className={voiceSettings.voiceURI===voice.voiceURI?'selected':''} key={`${voice.voiceURI}-${voice.lang}-${index}`} onClick={()=>chooseVoice(voice.voiceURI)}>{voice.name} ({voice.lang})</button>)}</div>}</div></div><label className="setting-field"><span>Speed <output>{voiceSettings.rate.toFixed(1)}×</output></span><input type="range" min="0.7" max="1.4" step="0.1" value={voiceSettings.rate} onChange={event=>update({rate:Number(event.target.value)})}/></label><label className="setting-field"><span>Pitch <output>{voiceSettings.pitch.toFixed(1)}</output></span><input type="range" min="0.7" max="1.3" step="0.1" value={voiceSettings.pitch} onChange={event=>update({pitch:Number(event.target.value)})}/></label><label className="setting-toggle"><span><b>Read new answers automatically</b><small>Off by default. You can still use Read aloud anytime.</small></span><input type="checkbox" checked={voiceSettings.autoRead} onChange={event=>update({autoRead:event.target.checked})}/></label><button className="voice-test" onClick={previewVoice}><Volume2/>Test this voice</button><p className="voice-note">Voice choices come from your phone or browser and stay on this device. Personal voice cloning is not enabled.</p></>:<p className="voice-unavailable">Voice playback is not supported in this browser.</p>}</div>
+}
+function UtilityPage({type,memory,setMemory,privateMode,setPrivate,onHome,voiceSettings,setVoiceSettings,availableVoices}){if(type==='Settings')return <section className="utility-page settings-page"><div className="settings-heading"><Settings/><div><h1>Settings</h1><p>Control the ELL-EX experience on this device.</p></div></div><VoiceSettings {...{voiceSettings,setVoiceSettings,availableVoices}}/><div className="device-settings"><button onClick={()=>setMemory(!memory)}>Memory: {memory?'On':'Off'}</button><button onClick={()=>setPrivate(!privateMode)}>Private mode: {privateMode?'On':'Off'}</button><button className="secondary" onClick={onHome}>Return home</button></div></section>;return <section className="placeholder utility-page"><HelpCircle/><h1>Help</h1><p>Type a request, choose a mode, or attach a supported photo or document. For scanned PDFs, use a clear photo until OCR is added.</p><button onClick={onHome}>Return home</button></section>}
 function Vault({vaultFile,setVaultFile,onHome}){return <section className="placeholder"><LockKeyhole/><h1>Private Vault</h1><p>Choose a file to prepare it on this device.</p><input id="vault-file" type="file" hidden onChange={e=>setVaultFile(e.target.files?.[0]?.name||'')}/><button onClick={()=>window.document.getElementById('vault-file').click()}><Paperclip/> Choose file</button>{vaultFile&&<div className="vault-status" role="status"><b>{vaultFile}</b><span>Selected successfully. Permanent encrypted storage is not connected yet, so ELL-EX has not uploaded this file.</span></div>}<button className="secondary" onClick={onHome}>Return home</button></section>}
 function App(){
   const[active,setActive]=useState('Home');
@@ -323,9 +354,19 @@ function App(){
   const[privateMode,setPrivate]=useState(true);
   const[vaultFile,setVaultFile]=useState('');
   const[notice,setNotice]=useState('');
+  const[voiceSettings,setVoiceSettings]=useState(readVoiceSettings);
+  const[availableVoices,setAvailableVoices]=useState([]);
 
   useEffect(()=>{if(active==='Create'||active==='Learn')setMode(active)},[active]);
   useEffect(()=>{if(!notice)return;const timer=setTimeout(()=>setNotice(''),2600);return()=>clearTimeout(timer)},[notice]);
+  useEffect(()=>{writeVoiceSettings(voiceSettings)},[voiceSettings]);
+  useEffect(()=>{
+    if(!('speechSynthesis'in window))return;
+    const refreshVoices=()=>setAvailableVoices(window.speechSynthesis.getVoices().slice().sort((a,b)=>a.name.localeCompare(b.name)));
+    refreshVoices();
+    window.speechSynthesis.addEventListener('voiceschanged',refreshVoices);
+    return()=>window.speechSynthesis.removeEventListener('voiceschanged',refreshVoices);
+  },[]);
 
   const navigate=target=>{
     setActive(target);
@@ -333,6 +374,6 @@ function App(){
     window.requestAnimationFrame(()=>window.scrollTo({top:0,behavior:'smooth'}));
   };
 
-  return <div className="app"><Sidebar active={active} setActive={navigate} open={open} setOpen={setOpen}/><main><Header menu={()=>setOpen(true)} onNotify={()=>setNotice('You’re all caught up — no new notifications.')} {...{setPrivate,privateMode,memory,setMemory}}/>{notice&&<div className="app-notice" role="status">{notice}</div>}<div className="content"><div className="workspace">{!['Vault','Settings','Help'].includes(active)&&<Composer {...{mode,setMode}}/>}{active==='Home'?<><Agents/><Lab/></>:active==='Agents'?<Agents/>:active==='Worlds'?<Lab/>:(active==='Create'||active==='Learn')?null:active==='Vault'?<Vault {...{vaultFile,setVaultFile}} onHome={()=>navigate('Home')}/>:<UtilityPage type={active} {...{memory,setMemory,privateMode,setPrivate}} onHome={()=>navigate('Home')}/>}</div><Core {...{tab,setTab}}/></div><nav className="bottom">{nav.slice(0,5).map(([n,I])=><button key={n} className={active===n?'active':''} onClick={()=>navigate(n)}><I/><span>{n}</span></button>)}</nav></main></div>
+  return <div className="app"><Sidebar active={active} setActive={navigate} open={open} setOpen={setOpen}/><main><Header menu={()=>setOpen(true)} onNotify={()=>setNotice('You’re all caught up — no new notifications.')} {...{setPrivate,privateMode,memory,setMemory}}/>{notice&&<div className="app-notice" role="status">{notice}</div>}<div className="content"><div className="workspace">{!['Vault','Settings','Help'].includes(active)&&<Composer {...{mode,setMode,voiceSettings,availableVoices}}/>}{active==='Home'?<><Agents/><Lab/></>:active==='Agents'?<Agents/>:active==='Worlds'?<Lab/>:(active==='Create'||active==='Learn')?null:active==='Vault'?<Vault {...{vaultFile,setVaultFile}} onHome={()=>navigate('Home')}/>:<UtilityPage type={active} {...{memory,setMemory,privateMode,setPrivate,voiceSettings,setVoiceSettings,availableVoices}} onHome={()=>navigate('Home')}/>}</div><Core {...{tab,setTab}}/></div><nav className="bottom">{nav.slice(0,5).map(([n,I])=><button key={n} className={active===n?'active':''} onClick={()=>navigate(n)}><I/><span>{n}</span></button>)}</nav></main></div>
 }
 createRoot(document.getElementById('root')).render(<App/>);
