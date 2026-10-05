@@ -29,3 +29,9 @@ test('uses an in-app voice picker instead of the Android native select',async()=
   assert.match(source,/role="listbox"/);
   assert.doesNotMatch(source,/<select[^>]*voiceSettings\.voiceURI/);
 });
+
+test('does not return the storage result as a React effect cleanup',async()=>{
+  const source=await readFile(new URL('../src/main.jsx',import.meta.url),'utf8');
+  assert.match(source,/useEffect\(\(\)=>\{writeVoiceSettings\(voiceSettings\)\},\[voiceSettings\]\);/);
+  assert.doesNotMatch(source,/useEffect\(\(\)=>writeVoiceSettings\(voiceSettings\)/);
+});
