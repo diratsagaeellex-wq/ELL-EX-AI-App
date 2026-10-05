@@ -1,6 +1,22 @@
 // Base64 adds roughly one third to the original file size. Stay below
 // Vercel's function request limit after JSON overhead is included.
 const MAX_IMAGE_LENGTH = 3_900_000;
+const DEFAULT_VISION_MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash-lite'];
+const RETRYABLE_STATUSES = new Set([404, 429, 500, 502, 503, 504]);
+
+function visionModels() {
+  return [...new Set([
+    process.env.GEMINI_VISION_MODEL,
+    ...DEFAULT_VISION_MODELS,
+  ].filter(Boolean))];
+}
+
+function extractText(data) {
+  return data?.candidates?.[0]?.content?.parts
+    ?.map((part) => part?.text || '')
+    .join('')
+    .trim();
+}
 
 export default async function handler(request, response) {
   if (request.method !== 'POST') {
@@ -12,9 +28,7 @@ export default async function handler(request, response) {
     typeof request.body?.question === 'string'
       ? request.body.question.trim().slice(0, 1200)
       : 'Describe this image clearly.';
-
-  const image =
-    typeof request.body?.image === 'string' ? request.body.image : '';
+  const image = typeof request.body?.image === 'string' ? request.body.image : '';
 
   if (!image.startsWith('data:image/') || image.length > MAX_IMAGE_LENGTH) {
     return response
@@ -31,75 +45,70 @@ export default async function handler(request, response) {
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
-
   if (!apiKey) {
-    return response
-      .status(503)
-      .json({ error: 'ELL-EX Vision is not configured yet.' });
+    return response.status(503).json({
+      error: 'ELL-EX Vision is not configured yet.',
+      code: 'VISION_NOT_CONFIGURED',
+    });
   }
 
-  try {
-    const aiResponse = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(process.env.GEMINI_VISION_MODEL || 'gemini-3.8-flash')}:generateContent`,
+  const requestBody = {
+    contents: [
       {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: 'user',
-              parts: [
-                { text: question },
-                {
-                  inline_data: {
-                    mime_type: match[1],
-                    data: match[2]
-                  }
-                }
-              ]
-            }
-          ],
-          generationConfig: {
-            maxOutputTokens: 800
-          }
-        })
+        role: 'user',
+        parts: [
+          { text: question },
+          {
+            inline_data: {
+              mime_type: match[1],
+              data: match[2],
+            },
+          },
+        ],
+      },
+    ],
+    generationConfig: { maxOutputTokens: 800 },
+  };
+
+  const models = visionModels();
+
+  for (const model of models) {
+    try {
+      const aiResponse = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': apiKey,
+          },
+          body: JSON.stringify(requestBody),
+        }
+      );
+      const data = await aiResponse.json().catch(() => ({}));
+
+      if (aiResponse.ok) {
+        const text = extractText(data);
+        if (text) {
+          return response.status(200).json({ text });
+        }
+        console.error('Gemini vision returned an empty response', model);
+      } else {
+        console.error('Gemini vision error', model, aiResponse.status, data);
+        if (!RETRYABLE_STATUSES.has(aiResponse.status)) {
+          return response.status(502).json({
+            error: 'ELL-EX Vision could not analyse that image. Please try again.',
+            code: 'VISION_PROVIDER_ERROR',
+          });
+        }
       }
-    );
-
-    const data = await aiResponse.json();
-
-    if (!aiResponse.ok) {
-      console.error('Gemini vision error', aiResponse.status, data);
-      const providerMessage = data?.error?.message;
-
-      return response.status(502).json({
-        error:
-          typeof providerMessage === 'string'
-            ? `Vision provider error: ${providerMessage.slice(0, 180)}`
-            : 'The vision service is temporarily unavailable.'
-      });
+    } catch (error) {
+      console.error('ELL-EX vision request error', model, error);
     }
-
-    const text = data?.candidates?.[0]?.content?.parts
-      ?.map((part) => part?.text || '')
-      .join('')
-      .trim();
-
-    if (!text) {
-      return response
-        .status(502)
-        .json({ error: 'ELL-EX Vision returned an empty response.' });
-    }
-
-    return response.status(200).json({ text });
-  } catch (error) {
-    console.error('ELL-EX vision error', error);
-
-    return response
-      .status(500)
-      .json({ error: 'ELL-EX could not analyse that image.' });
   }
+
+  return response.status(503).json({
+    error: 'ELL-EX Vision is temporarily busy. Please try again in a moment.',
+    code: 'VISION_TEMPORARILY_UNAVAILABLE',
+  });
 }
