@@ -72,7 +72,7 @@ export default async function handler(request, response) {
 
   const models = visionModels();
 
-  for (const [index, model] of models.entries()) {
+  for (const model of models) {
     try {
       const aiResponse = await fetch(
         `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
@@ -95,8 +95,7 @@ export default async function handler(request, response) {
         console.error('Gemini vision returned an empty response', model);
       } else {
         console.error('Gemini vision error', model, aiResponse.status, data);
-        const hasFallback = index < models.length - 1;
-        if (!hasFallback || !RETRYABLE_STATUSES.has(aiResponse.status)) {
+        if (!RETRYABLE_STATUSES.has(aiResponse.status)) {
           return response.status(502).json({
             error: 'ELL-EX Vision could not analyse that image. Please try again.',
             code: 'VISION_PROVIDER_ERROR',
