@@ -275,9 +275,7 @@ function Composer({mode,setMode,voiceSettings,availableVoices}){
           ?'That photo is too large to send. ELL-EX compressed it, but the upload still exceeded the service limit.'
           :response.status===429
           ?'ELL-EX is receiving many requests. Please wait a moment and try again.'
-          :response.status===503
-            ?'ELL-EX AI is not configured yet. Check the HF_TOKEN environment variable.'
-            :data.error||'The AI service is temporarily unavailable.';
+          :data.error||'The AI service is temporarily unavailable.';
         throw new Error(message);
       }
       setMessages(current=>[...current,{
