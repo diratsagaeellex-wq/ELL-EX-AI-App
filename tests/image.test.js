@@ -79,3 +79,22 @@ test("keeps unexpected provider failures temporary", () => {
     error: "The image service is temporarily unavailable.",
   });
 });
+
+test("identifies image creation that is not configured", async (context) => {
+  const originalToken = process.env.HF_TOKEN;
+  delete process.env.HF_TOKEN;
+
+  context.after(() => {
+    if (originalToken === undefined) delete process.env.HF_TOKEN;
+    else process.env.HF_TOKEN = originalToken;
+  });
+
+  const response = responseRecorder();
+  await handler(
+    { method: "POST", headers: { "x-forwarded-for": "image-not-configured-test" }, body: { prompt: "A blue and gold poster" } },
+    response,
+  );
+
+  assert.equal(response.statusCode, 503);
+  assert.equal(response.body.code, "IMAGE_NOT_CONFIGURED");
+});
