@@ -70,7 +70,10 @@ export default async function handler(request, response, dependencies = {}) {
 
   const token = process.env.HF_TOKEN;
   if (!token) {
-    return response.status(503).json({ error: "ELL-EX image creation is not configured yet." });
+    return response.status(503).json({
+      code: "IMAGE_NOT_CONFIGURED",
+      error: "ELL-EX image creation is not configured yet.",
+    });
   }
 
   try {
