@@ -5,6 +5,7 @@ import remarkGfm from'remark-gfm';
 import{Home,Sparkles,GraduationCap,Users,Orbit,ShieldCheck,Settings,HelpCircle,Mic,Camera,Paperclip,MonitorUp,ArrowUp,ArrowLeft,MessageCircle,Code2,BookOpen,CalendarDays,Bell,BrainCircuit,Globe2,Palette,LockKeyhole,History,ChevronRight,ChevronDown,Menu,X,Volume2,Pause,Square,Plus,ScanLine,Copy,ThumbsUp,RotateCcw,ImageIcon,Play,GitFork,CheckCircle2}from'lucide-react';
 import'./styles.css';
 import{buildDownload,extractBuildDocument}from'./buildArtifact.js';
+import{createZeroCreditCreativeBrief,shouldUseZeroCreditFallback}from'./creativeFallback.js';
 import{readVoiceSettings,writeVoiceSettings}from'./voiceSettings.js';
 import{FUTURE_PROJECTS,continueFutureProject,readFutureLabState,remixFutureProject,writeFutureLabState}from'./futureLab.js';
 
@@ -271,6 +272,10 @@ function Composer({mode,setMode,voiceSettings,availableVoices}){
       }
       const data=await response.json().catch(()=>({}));
       if(!response.ok){
+        if(isImage&&shouldUseZeroCreditFallback(data.code)){
+          setMessages(current=>[...current,{id,question:clean,mode,answer:createZeroCreditCreativeBrief(clean,data.code)}]);
+          return;
+        }
         const message=response.status===413
           ?'That photo is too large to send. ELL-EX compressed it, but the upload still exceeded the service limit.'
           :response.status===429
