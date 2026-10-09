@@ -2,7 +2,10 @@
 // Vercel's function request limit after JSON overhead is included.
 const MAX_IMAGE_LENGTH = 3_900_000;
 const DEFAULT_VISION_MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash-lite'];
-const DEFAULT_HF_VISION_MODEL = 'Qwen/Qwen2.5-VL-3B-Instruct';
+// Pin the provider as well as the model. The Hugging Face router no longer
+// reliably selects a provider for this VLM when only the model ID is sent.
+const DEFAULT_HF_VISION_MODEL =
+  'Qwen/Qwen2.5-VL-3B-Instruct:featherless-ai';
 const RETRYABLE_STATUSES = new Set([404, 429, 500, 502, 503, 504]);
 
 function visionModels() {
