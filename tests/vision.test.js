@@ -155,7 +155,10 @@ test('uses the existing Hugging Face token when Gemini is not configured', async
   assert.equal(request.url, 'https://router.huggingface.co/v1/chat/completions');
   assert.equal(request.options.headers.Authorization, 'Bearer hf-test-key');
   const body = JSON.parse(request.options.body);
-  assert.equal(body.model, 'Qwen/Qwen2.5-VL-3B-Instruct');
+  assert.equal(
+    body.model,
+    'Qwen/Qwen2.5-VL-3B-Instruct:featherless-ai'
+  );
   assert.equal(body.messages[0].content[1].image_url.url, validRequest.body.image);
 });
 
