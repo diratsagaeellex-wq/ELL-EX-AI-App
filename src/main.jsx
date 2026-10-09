@@ -6,6 +6,7 @@ import{Home,Sparkles,GraduationCap,Users,Orbit,ShieldCheck,Settings,HelpCircle,M
 import'./styles.css';
 import{buildDownload,extractBuildDocument}from'./buildArtifact.js';
 import{createZeroCreditCreativeBrief,shouldUseZeroCreditFallback}from'./creativeFallback.js';
+import{analyseLocalImage,createZeroCreditVisionSummary,shouldUseZeroCreditVisionFallback}from'./visionFallback.js';
 import{readVoiceSettings,writeVoiceSettings}from'./voiceSettings.js';
 import{FUTURE_PROJECTS,continueFutureProject,readFutureLabState,remixFutureProject,writeFutureLabState}from'./futureLab.js';
 
@@ -113,6 +114,23 @@ function Composer({mode,setMode,voiceSettings,availableVoices}){
     image.src=src;
   });
 
+  const inspectPhotoLocally=async dataUrl=>{
+    const source=await loadImage(dataUrl);
+    const canvas=window.document.createElement('canvas');
+    canvas.width=32;
+    canvas.height=32;
+    const context=canvas.getContext('2d',{alpha:false,willReadFrequently:true});
+    if(!context)return null;
+    context.fillStyle='#fff';
+    context.fillRect(0,0,canvas.width,canvas.height);
+    context.drawImage(source,0,0,canvas.width,canvas.height);
+    return analyseLocalImage(
+      source.naturalWidth||source.width,
+      source.naturalHeight||source.height,
+      context.getImageData(0,0,canvas.width,canvas.height).data
+    );
+  };
+
   const preparePhoto=async file=>{
     const direct=await readAsDataUrl(file);
     // Keep small, already-compatible photos untouched. This avoids Android
@@ -194,7 +212,9 @@ function Composer({mode,setMode,voiceSettings,availableVoices}){
     if(file.size>12*1024*1024){setPhotoError('That image is too large. Please choose one under 12 MB.');return}
     try{
       const dataUrl=await preparePhoto(file);
-      setPhoto({name:file.name||'Camera photo',dataUrl});
+      let localDetails=null;
+      try{localDetails=await inspectPhotoLocally(dataUrl)}catch{}
+      setPhoto({name:file.name||'Camera photo',dataUrl,localDetails});
     }catch(error){
       setPhotoError(error.message||'ELL-EX could not process that photo. Try a JPG, PNG, or WebP image.');
     }
@@ -274,6 +294,10 @@ function Composer({mode,setMode,voiceSettings,availableVoices}){
       if(!response.ok){
         if(isImage&&shouldUseZeroCreditFallback(data.code)){
           setMessages(current=>[...current,{id,question:clean,mode,answer:createZeroCreditCreativeBrief(clean,data.code)}]);
+          return;
+        }
+        if(isVision&&shouldUseZeroCreditVisionFallback(data.code)){
+          setMessages(current=>[...current,{id,question:clean||'Analyse this image',mode,answer:createZeroCreditVisionSummary(clean,photo,data.code)}]);
           return;
         }
         const message=response.status===413
