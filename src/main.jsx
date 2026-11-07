@@ -4,6 +4,7 @@ import ReactMarkdown from'react-markdown';
 import remarkGfm from'remark-gfm';
 import{Home,Sparkles,GraduationCap,Users,Orbit,ShieldCheck,Settings,HelpCircle,Mic,Camera,Paperclip,MonitorUp,ArrowUp,MessageCircle,Code2,BookOpen,CalendarDays,Bell,BrainCircuit,Globe2,Palette,LockKeyhole,History,ChevronRight,Menu,X,Volume2,Pause,Square,Plus,ScanLine,Copy,ThumbsUp,RotateCcw,ImageIcon}from'lucide-react';
 import'./styles.css';
+import WelcomeScreen from './WelcomeScreen.jsx';
 
 
 const nav=[['Home',Home],['Create',Sparkles],['Learn',GraduationCap],['Agents',Users],['Worlds',Orbit],['Vault',ShieldCheck]];
@@ -300,4 +301,21 @@ function Core({tab,setTab}){return <aside className="core"><div className="core-
 function UtilityPage({type,memory,setMemory,privateMode,setPrivate,onHome}){if(type==='Settings')return <section className="placeholder utility-page"><Settings/><h1>Settings</h1><p>Control the ELL-EX experience on this device.</p><button onClick={()=>setMemory(!memory)}>Memory: {memory?'On':'Off'}</button><button onClick={()=>setPrivate(!privateMode)}>Private mode: {privateMode?'On':'Off'}</button><button className="secondary" onClick={onHome}>Return home</button></section>;return <section className="placeholder utility-page"><HelpCircle/><h1>Help</h1><p>Type a request, choose a mode, or attach a supported photo or document. For scanned PDFs, use a clear photo until OCR is added.</p><button onClick={onHome}>Return home</button></section>}
 function Vault({vaultFile,setVaultFile,onHome}){return <section className="placeholder"><LockKeyhole/><h1>Private Vault</h1><p>Choose a file to prepare it on this device.</p><input id="vault-file" type="file" hidden onChange={e=>setVaultFile(e.target.files?.[0]?.name||'')}/><button onClick={()=>window.document.getElementById('vault-file').click()}><Paperclip/> Choose file</button>{vaultFile&&<div className="vault-status" role="status"><b>{vaultFile}</b><span>Selected successfully. Permanent encrypted storage is not connected yet, so ELL-EX has not uploaded this file.</span></div>}<button className="secondary" onClick={onHome}>Return home</button></section>}
 function App(){const[active,setActive]=useState('Home');const[mode,setMode]=useState('Ask');const[open,setOpen]=useState(false);const[tab,setTab]=useState('Capabilities');const[memory,setMemory]=useState(true);const[privateMode,setPrivate]=useState(true);const[vaultFile,setVaultFile]=useState('');const[notice,setNotice]=useState('');useEffect(()=>{if(active==='Create'||active==='Learn')setMode(active)},[active]);useEffect(()=>{if(!notice)return;const timer=setTimeout(()=>setNotice(''),2600);return()=>clearTimeout(timer)},[notice]);const home=()=>setActive('Home');return <div className="app"><Sidebar {...{active,setActive,open,setOpen}}/><main><Header menu={()=>setOpen(true)} onNotify={()=>setNotice('You’re all caught up — no new notifications.')} {...{setPrivate,privateMode,memory,setMemory}}/>{notice&&<div className="app-notice" role="status">{notice}</div>}<div className="content"><div className="workspace">{!['Vault','Settings','Help'].includes(active)&&<Composer {...{mode,setMode}}/>}{active==='Home'?<><Agents/><Lab/></>:active==='Agents'?<Agents/>:active==='Worlds'?<Lab/>:(active==='Create'||active==='Learn')?null:active==='Vault'?<Vault {...{vaultFile,setVaultFile}} onHome={home}/>:<UtilityPage type={active} {...{memory,setMemory,privateMode,setPrivate}} onHome={home}/>}</div><Core {...{tab,setTab}}/></div><nav className="bottom">{nav.slice(0,5).map(([n,I])=><button key={n} className={active===n?'active':''} onClick={()=>setActive(n)}><I/><span>{n}</span></button>)}</nav></main></div>}
-createRoot(document.getElementById('root')).render(<App/>);
+function AppWithWelcome() {
+  const [showWelcome, setShowWelcome] = useState(true);
+
+  return (
+    <>
+      {showWelcome && (
+        <WelcomeScreen
+          onEnter={() => setShowWelcome(false)}
+        />
+      )}
+      {!showWelcome && <App />}
+    </>
+  );
+}
+
+createRoot(document.getElementById('root')).render(
+  <AppWithWelcome />
+);
