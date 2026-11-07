@@ -59,7 +59,7 @@ export default async function handler(request, response) {
       .json({ error: "Please enter a question under 3,000 characters." });
   }
 
-  const token = process.env.HF_TOKEN;
+  const token = process.env.GROQ_API_KEY;
 
   if (!token) {
     return response.status(503).json({
@@ -70,7 +70,7 @@ export default async function handler(request, response) {
 
   try {
     const aiResponse = await fetch(
-      "https://router.huggingface.co/v1/chat/completions",
+  "https://api.groq.com/openai/v1/chat/completions",
       {
         method: "POST",
         headers: {
@@ -78,7 +78,7 @@ export default async function handler(request, response) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "openai/gpt-oss-20b:cheapest",
+          model: "llama-3.1-8b-instant",
           messages: [
             {
               role: "system",
