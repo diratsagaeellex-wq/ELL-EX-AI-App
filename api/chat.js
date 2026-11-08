@@ -101,7 +101,7 @@ export default async function handler(request, response) {
 
     if (!aiResponse.ok) {
       console.error(
-        "Hugging Face error",
+        "Groq API error",
         aiResponse.status,
         data?.error?.message || data?.error || data
       );
