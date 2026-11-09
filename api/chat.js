@@ -80,7 +80,9 @@ export default async function handler(request, response) {
       .json({ error: "Please enter a question under 3,000 characters." });
   }
 
-  const token = process.env.HF_TOKEN;
+  const groqToken = process.env.GROQ_API_KEY;
+const token = groqToken || process.env.HF_TOKEN;
+const provider = groqToken ? "groq" : "huggingface";
 
   if (!token) {
     return response.status(503).json({
@@ -91,7 +93,9 @@ export default async function handler(request, response) {
 
   try {
     const aiResponse = await fetch(
-      "https://router.huggingface.co/v1/chat/completions",
+      provider === "groq"
+  ? "https://api.groq.com/openai/v1/chat/completions"
+  : "https://router.huggingface.co/v1/chat/completions",
       {
         method: "POST",
         headers: {
@@ -99,7 +103,9 @@ export default async function handler(request, response) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "openai/gpt-oss-20b:cheapest",
+          model: provider === "groq"
+  ? (process.env.GROQ_MODEL || "openai/gpt-oss-20b")
+  : "openai/gpt-oss-20b:cheapest",
           messages: [
             {
               role: "system",
@@ -123,7 +129,7 @@ export default async function handler(request, response) {
 
     if (!aiResponse.ok) {
       console.error(
-        "Hugging Face error",
+        `${provider} error`,
         aiResponse.status,
         data?.error?.message || data?.error || data
       );
